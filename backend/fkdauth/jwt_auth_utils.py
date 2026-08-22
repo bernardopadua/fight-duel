@@ -11,8 +11,8 @@ def encodeBase64(data: dict[str, Any]) -> str:
     encoded_data = json.dumps(data, separators=(',', ':'), sort_keys=True)
     return base64.urlsafe_b64encode(encoded_data.encode()).decode().rstrip('=')
 
-def encodeBase64Str(data: str) -> str:
-    return base64.urlsafe_b64encode(data.encode()).decode().rstrip('=')
+def encodeBase64Bytes(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode().rstrip('=')
 
 def decodeBase64(data: str) -> dict[str, Any]:
     remainder = len(data) % 4
@@ -46,13 +46,13 @@ def createToken(userId: int, secretKey: str, timeExpires: int = 3600) -> str:
 
     tokenSignature = signToken(encodedHeader, encodedPayload, secretKey)
 
-    return f"{encodedHeader}.{encodedPayload}.{encodeBase64Str(tokenSignature.decode())}"
+    return f"{encodedHeader}.{encodedPayload}.{encodeBase64Bytes(tokenSignature)}"
 
 def decodeToken(token: str, secretKey: str) -> dict[str, Any]:
     header, payload, signature = token.split('.')
     tokenSignature = signToken(header, payload, secretKey)
 
-    if not hmac.compare_digest(tokenSignature.decode(), signature):
+    if not hmac.compare_digest(encodeBase64Bytes(tokenSignature), signature):
         raise JWTError("Invalid JWT signature")
     
     payload = decodeBase64(payload)

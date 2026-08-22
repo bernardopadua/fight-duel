@@ -6,7 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 
 from rest_framework.response import Response
 
-from jwt_auth_utils import decodeToken, JWTError, JWTExpiredError
+from fkdauth.jwt_auth_utils import decodeToken, JWTError, JWTExpiredError
 
 class JWTMiddleware:
     def __init__(self, get_response: Callable[..., Any]) -> None:

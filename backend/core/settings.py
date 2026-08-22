@@ -41,7 +41,8 @@ INSTALLED_APPS = [
 
     'rest_framework',
 
-    'fkdauth'
+    'fkdauth',
+    'mmo'
 ]
 
 MIDDLEWARE = [
@@ -52,7 +53,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'fkdauth.middleware.JWTMiddleware',
+    # 'fkdauth.middleware.JWTMiddleware', #using default auth from rest
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -134,4 +135,14 @@ MAILERS = {
     'default': {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
+}
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'fkdauth.jwt_auth_django.JWTAuthenticationBackend',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
 }

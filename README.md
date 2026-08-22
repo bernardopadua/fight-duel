@@ -14,7 +14,7 @@ Trade items, buying items
 
 ## Models
 ### **AUTH**:
-#### login
+#### login (django User Model)
 - id
 - user
 - pass
@@ -34,6 +34,7 @@ Trade items, buying items
 - creatureChanceDrop
 #### player
 - id
+- userId (foreign User)
 - playerName
 - playerLevel
 - playerExp
@@ -64,6 +65,15 @@ Trade items, buying items
 
 ## Actions
 The user can make a login account, create a character (player), enter a world, pick fights, fight, then can buy or sell items. 
+
+#### REST
+ - Login/Register
+ - Create player
+ - Buy items
+ - Sell items
+
+#### WebSocket
+ - Fight
 
 ### Fighting
 user choose to fight with a creature the fight is locked in database (the creature cannot participate in another fight). 
