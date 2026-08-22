@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fkingduel_postgres
+    restart: unless-stopped
+    networks: 
+      - fkingduel
+    environment:
+      POSTGRES_DB: fkingdueldb
+      POSTGRES_USER: fkingdueluser
+      POSTGRES_PASSWORD: fkingduelpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./backend/.data:/var/lib/postgresql/data
+
+networks:
+  fkingduel:
+    driver: bridge
+
+volumes:
+  postgres_data:
