@@ -72,8 +72,10 @@ The user can make a login account, create a character (player), enter a world, p
  - Buy items
  - Sell items
 
-#### WebSocket
+#### WebSocket/Channels
  - Fight
+ -- All the game logic about fighting will be handled here
+ 
 
 ### Fighting
 user choose to fight with a creature the fight is locked in database (the creature cannot participate in another fight). 
