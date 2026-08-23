@@ -4,7 +4,7 @@ import { useAuth } from "./auth/AuthContext";
 
 import Login from "./auth/Login";
 import Register from "./auth/Register";
-import GameLayout from "./game/Game";
+import Game from "./game/Game";
 
 type View = "login" | "register" | "game";
 
@@ -14,14 +14,14 @@ function App() {
     
     if(!auth.token){
         return (
-            view == "login" ?
+            view === "login" ?
                 <Login goRegister={() => setView("register")} /> :
                 <Register goLogin={() => setView("login")} />
         );
     }
     
     return (
-        <GameLayout />
+        <Game />
     )
 }
 

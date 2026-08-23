@@ -19,9 +19,11 @@ interface Player {
     playerExp: number
     playerPower: number
     playerStamina: number
-    playerEquipedWeapon: Item
-    playerEquipedArmour: Item
+    playerEquipedWeapon: Item | null
+    playerEquipedArmour: Item | null
     playerStatus: string
     playerMaxWeight: number
     playerCurrency: number
 }
+
+export type { Player };

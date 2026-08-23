@@ -1,4 +1,6 @@
-from rest_framework.generics import CreateAPIView, ListAPIView
+from typing import override
+
+from rest_framework.generics import CreateAPIView, RetrieveAPIView, get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 
 from mmo.serializers import CreatePlayerSerializer, GetPlayerSerializer
@@ -12,7 +14,7 @@ class CreateNewPlayer(CreateAPIView):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-class GetPlayerView(ListAPIView):
+class GetPlayerView(RetrieveAPIView):
 
     serializer_class = GetPlayerSerializer
     permission_classes = [IsAuthenticated]
@@ -20,3 +22,7 @@ class GetPlayerView(ListAPIView):
     def get_queryset(self):
         queryset = Player.objects.filter(user=self.request.user)
         return queryset
+    
+    @override
+    def get_object(self):
+        return get_object_or_404(self.get_queryset())

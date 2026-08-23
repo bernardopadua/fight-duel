@@ -1,36 +1,38 @@
+import { ApiError, callFetch } from "./api";
 import type { LoginResponse, RegisterResponse } from "./types";
 import { ROUTES } from "./routes";
 
-export async function login(username: string, password: string): Promise<LoginResponse>{
-    const response = await fetch(ROUTES.login(),{
-        method: "POST",
-        body: JSON.stringify({
-            username,
-            password
-        }),
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
+export async function login(username: string, password: string): Promise<LoginResponse | null>{
+    try {
+        const response = await callFetch<LoginResponse>(ROUTES.login(), null, {
+            method: "POST",
+            body: JSON.stringify({
+                username,
+                password
+            })
+        });
 
-    if(!response.ok) throw new Error(`login failed: ${response.body}`);
-
-    return response.json();
+        return response;
+    } catch (err) {
+        console.log(err);
+        return null;
+    }
 }
 
 export async function register(username: string, password: string): Promise<RegisterResponse>{
-    const response = await fetch(ROUTES.register(),{
-        method: "POST",
-        body: JSON.stringify({
-            username,
-            password
-        }),
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
+    try {
+        const response = await callFetch<RegisterResponse>(ROUTES.register(), null, {
+            method: "POST",
+            body: JSON.stringify({
+                username,
+                password
+            })
+        });
 
-    if(!response.ok) throw new Error(`register failed: ${response.body}`);
-
-    return response.json();
+        return response;
+    } catch (err) {
+        console.log(err);
+        if (err instanceof ApiError) return { error: err.error };
+        return { error: "unknown error" };
+    }
 }
