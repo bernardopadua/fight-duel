@@ -14,33 +14,38 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
+        username = request.data.get("username")
+        password = request.data.get("password")
         
         if not User.objects.filter(username=username).exists():
-            return Response({'error': 'User does not exist'}, status=404)
+            return Response({"error": "User does not exist"}, status=404)
 
         user = authenticate(username=username, password=password)
         
         if not user:
-            return Response({'error': 'Invalid credentials'}, status=401)
+            return Response({"error": "Invalid credentials"}, status=401)
         else:
             token = createToken(user.id, settings.SECRET_KEY)
-            return Response({'token': token}, status=200)
+            response = Response({"token": token}, status=200)
+            response.set_cookie("Authorization-JWT", token, httponly=True, samesite="Lax")
+            return response
 
 class RegisterUserView(APIView):
 
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
+        username = request.data.get("username")
+        password = request.data.get("password")
 
         if not username or not password:
-            return Response({'error': 'Username and password are required'}, status=400)
+            return Response({"error": "Username and password are required"}, status=400)
 
         if User.objects.filter(username=username).exists():
-            return Response({'error': 'User already exists'}, status=400)
+            return Response({"error": "User already exists"}, status=400)
         else:
-            User.objects.create_user(username=username, password=make_password(password))
-            return Response({'success': 'User created successfully'}, status=201)
+            user = User.objects.create_user(username=username, password=make_password(password))
+            token = createToken(user.id, settings.SECRET_KEY)
+            response = Response({"success": True, "token": token}, status=200)
+            response.set_cookie("Authorization-JWT", token, httponly=True, samesite="Lax")
+            return response

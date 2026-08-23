@@ -35,8 +35,6 @@ class JWTAuthenticationBackend(BaseAuthentication):
             return None
         except Exception as e:
             raise AuthenticationFailed(f"Invalid JWT token: {e}")
-
-        return None
     
     @override
     def authenticate_header(self, request):
