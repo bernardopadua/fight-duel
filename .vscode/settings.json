@@ -1,5 +1,6 @@
 {
-  "python.analysis.extraPaths": [
-    "./backend"
-  ]
+    "basedpyright.analysis.extraPaths": [
+        "./backend"
+    ],
+    "basedpyright.analysis.typeCheckingMode": "standard"
 }

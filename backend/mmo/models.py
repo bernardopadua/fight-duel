@@ -21,6 +21,7 @@ class Item(models.Model):
 class Player(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     playerName = models.CharField(max_length=100)
+    playerLife = models.IntegerField(default=100)
     playerLevel = models.IntegerField(default=1)
     playerExp = models.IntegerField(default=0)
     playerPower = models.IntegerField(default=1)
