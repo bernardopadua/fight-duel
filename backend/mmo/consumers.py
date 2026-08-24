@@ -45,9 +45,10 @@ class FightConsumer(AsyncWebsocketConsumer):
                     "data": asdict(fs)
                 }))
                 await self.fight_create_group(fs.fightId)
+                interval = await sync_to_async(FightEngine.monsterAttackInterval)(fs.creatureLevel)
                 monsterAttack.apply_async(
                     args=[fs.fightId, self.channel_name], 
-                    countdown=randint(2, 3)
+                    countdown=interval
                 )
         elif data.get("action") == "attack":
             if not self.fightId:
@@ -60,7 +61,11 @@ class FightConsumer(AsyncWebsocketConsumer):
                 "action": "fight.update",
                 "data": asdict(fs)
             }))
-    
+        elif data.get("action") == "flee":
+            if not self.fightId:
+                return
+            await sync_to_async(FightEngine.playerFlee)(self.fightId)
+
     async def fight_create_group(self, fightId: int):
         await self.channel_layer.group_add(
             f"fight_{fightId}",
@@ -74,6 +79,12 @@ class FightConsumer(AsyncWebsocketConsumer):
         )
 
         self.fightId = None
+
+        if fs := event.get("fightStatus"):
+            await self.send(json.dumps({
+                "action": "fight.finish",
+                "data": fs
+            }))
 
     async def fight_update(self, event: dict):
         data = event["data"]

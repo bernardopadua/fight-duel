@@ -12,6 +12,7 @@ class WorldCreature(models.Model):
     creatureLevel = models.IntegerField(default=1)
     creatureLife = models.IntegerField(default=100)
     creatureChanceDrop = models.IntegerField(default=50)
+    world = models.ForeignKey('World', on_delete=models.CASCADE)
 
 class Item(models.Model):
     itemName = models.CharField(max_length=100)
@@ -24,7 +25,7 @@ class Player(models.Model):
     playerLife = models.IntegerField(default=100)
     playerLevel = models.IntegerField(default=1)
     playerExp = models.IntegerField(default=0)
-    playerPower = models.IntegerField(default=1)
+    playerPower = models.IntegerField(default=10)
     playerStamina = models.IntegerField(default=100)
     playerEquipedWeapon = models.ForeignKey('Item', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
     playerEquipedArmour = models.ForeignKey('Item', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")

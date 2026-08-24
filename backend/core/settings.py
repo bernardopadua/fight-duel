@@ -171,6 +171,13 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
+CELERY_BEAT_SCHEDULE = {
+    'mmo-game-tick': {
+        'task': 'mmo.tasks.tick',
+        'schedule': 10.0, #seconds
+    }
+}
+
 # Django Cache
 CACHES = {
     "default": {
