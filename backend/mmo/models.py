@@ -15,9 +15,20 @@ class WorldCreature(models.Model):
     world = models.ForeignKey('World', on_delete=models.CASCADE)
 
 class Item(models.Model):
+    class ItemType(models.TextChoices):
+        WEAPON = "weapon"
+        ARMOUR = "armour"
+        CONSUMABLE = "consumable"
+    
+    class ItemConsumableType(models.TextChoices):
+        LIFE = "life"
+        STAMINA = "stamina"
+
     itemName = models.CharField(max_length=100)
     itemPower = models.IntegerField(default=0)
     itemWeight = models.IntegerField(default=1)
+    itemType = models.CharField(max_length=50, choices=ItemType.choices)
+    itemConsumableType = models.CharField(max_length=50, choices=ItemConsumableType.choices, null=True, blank=True)
 
 class Player(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -27,8 +38,8 @@ class Player(models.Model):
     playerExp = models.IntegerField(default=0)
     playerPower = models.IntegerField(default=10)
     playerStamina = models.IntegerField(default=100)
-    playerEquipedWeapon = models.ForeignKey('Item', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
-    playerEquipedArmour = models.ForeignKey('Item', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")
+    playerEquipedWeapon = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
+    playerEquipedArmour = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")
     playerStatus = models.CharField(max_length=50, default='idle') #idle, fighting, running, dead
     playerMaxWeight = models.IntegerField(default=100)
     playerCurrency = models.IntegerField(default=0)

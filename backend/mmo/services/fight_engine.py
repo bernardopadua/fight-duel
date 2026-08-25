@@ -4,16 +4,22 @@ from channels.layers import get_channel_layer
 
 from django.db import transaction
 from django.core.cache import cache
+from django.forms import model_to_dict
 
 from mmo.models import Player, Fight, WorldCreature
+from mmo.services.player_engine import PlayerEngine
 from .constants import (
     LEVEL_MAX, PLAYER_IS_ATTACKING, TEMPO_MIN_ATTACK, TEMPO_MAX_ATTACK,
     MONSTER_MAX_ATTACK, MONSTER_MIN_ATTACK, PLAYER_POWER_ATTACK_VARIATION,
     MONSTER_POWER_ATTACK_VARIATION
 )
 
+from mmo.services.drop_engine import DropEngine
+
 from random import randint
 from dataclasses import dataclass, asdict
+
+from typing import Any
 
 @dataclass
 class FightStatus:
@@ -25,6 +31,7 @@ class FightStatus:
     playerLife: int | None = None
     creatureLife: int | None = None
     creatureLevel: int = 1
+    creatureChanceDrop: int = 0
 
 @dataclass
 class FightStart:
@@ -36,21 +43,27 @@ class FightEngine:
 
     @classmethod
     def shouldIFight(cls, playerId: int) -> FightStart | None:
-        creatures = WorldCreature.objects.filter(
-            fight__isnull=True
-        ).order_by('id')
-        if not creatures.exists():
-            return None
-        
-        creature = creatures.first()
-        if creature is None:
+        p = Player.objects.filter(id=playerId).first()
+        if not p:
             return None
 
-        playerIsFight = Player.objects.filter(
+        creature = WorldCreature.objects.filter(
+            fight__isnull=True
+        ).filter(
+            creatureLevel__lte=p.playerLevel+4 #TODO: make better the random fight levels, not just +4
+        ).order_by('?').first()
+        if not creature:
+            creature = WorldCreature.objects.filter(
+                fight__isnull=True
+            ).order_by('?').first()
+
+        if not creature:
+            return None
+
+        if not Player.objects.filter(
             fight__isnull=True,
             id=playerId
-        )
-        if not playerIsFight.exists():
+        ).exists():
             return None
 
         fight = cls.lockFight(creature.id, playerId)
@@ -115,30 +128,47 @@ class FightEngine:
         f = Fight.objects.filter(
             id=fightId
         ).select_related(
-            'player'
-        )
+            "player",
+            "creature"
+        ).first()
         if not f:
             return
         
-        p = f.first()
+        p = f.player
         if not p: #pyright
             return 
 
         with transaction.atomic():
-            if p.player.playerStatus != "dead":
-                p.player.playerStatus = "idle"
-                p.player.save()
-
-            f.delete()
+            if p.playerStatus != "dead":
+                p.playerStatus = "idle"
+                p.save()
+            
+            if fs and not fs.isMonsterAlive:
+                f.creature.delete() #this will delete fight
+            else:
+                f.delete()
 
         cl = get_channel_layer()
         if cl is None:
             return
+
+        if not fs:
+            #TODO: Logging here
+            return 
+
+        itemsDict: list[dict[str, Any]] = []
+        if fs.isPlayerAlive and not fs.isMonsterAlive:
+            items = DropEngine.dropItems(fs.creatureLevel, fs.creatureChanceDrop)
+            itemsDict = [model_to_dict(i) for i in items]
+
         async_to_sync(cl.group_send)(
             f"fight_{fightId}", 
-            {"type": "fight.finish.group", 
-            "fightId": fightId,
-            "fightStatus": asdict(fs) if fs else None}
+            {
+                "type": "fight.finish.group", 
+                "fightId": fightId,
+                "fightStatus": asdict(fs) if fs else None,
+                "itemsDrop": itemsDict
+            }
         )
 
     @staticmethod
@@ -173,11 +203,12 @@ class FightEngine:
         fs = FightStatus()
         fs.isPlayerAttacking = playerAttackTime
 
-        # ADD ITEM POWER CALCULATION
+        totalPower = PlayerEngine.getPlayerTotalPower(p)
         powerAttack = randint(
-            int(p.playerPower*PLAYER_POWER_ATTACK_VARIATION), 
-            p.playerPower #add items power later
+            int(totalPower*PLAYER_POWER_ATTACK_VARIATION), 
+            totalPower
         )
+        powerAttack = 100 #I'm testing, keeping it for now.
         c.creatureLife = (c.creatureLife - powerAttack) if (c.creatureLife - powerAttack) > 0 else 0
         fs.creatureLife = c.creatureLife
         fs.playerLife = p.playerLife
@@ -186,7 +217,9 @@ class FightEngine:
 
         with transaction.atomic():
             if c.creatureLife <= 0:
-                c.delete()
+                fs.creatureChanceDrop = c.creatureChanceDrop
+                fs.creatureLevel = c.creatureLevel
+                #c.delete()
                 unlockFight = True
                 fs.isMonsterAlive = False
             else:

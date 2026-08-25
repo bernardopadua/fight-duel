@@ -174,7 +174,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_BEAT_SCHEDULE = {
     'mmo-game-tick': {
         'task': 'mmo.tasks.tick',
-        'schedule': 10.0, #seconds
+        'schedule': 30.0, #seconds
     }
 }
 

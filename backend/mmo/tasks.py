@@ -1,15 +1,13 @@
-from random import randint
 from dataclasses import asdict
 
 from celery import shared_task
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
-from django.db.models import Q
-
 from mmo.services.fight_engine import FightEngine
 from mmo.services.player_engine import PlayerEngine
 
+from mmo.services.constants import MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE
 from mmo.models import WorldCreature, World, Player
 from mmo.data.monster_names import MONSTER_NAMES
 
@@ -53,11 +51,13 @@ def respawnCreatures():
                 creatureName = random.choice(MONSTER_NAMES)
                 creatureLevel = random.randint(i.worldMinLevel, i.worldMaxLevel)
                 chanceDrop = int((creatureLevel*100)/i.worldMaxLevel)
+                creatureLife = int(MONSTER_BASE_LIFE + (creatureLevel * MONSTER_LIFE_VARIATION))
                 WorldCreature.objects.create(
                     world=i,
                     creatureName=creatureName,
                     creatureLevel=creatureLevel,
-                    creatureChanceDrop=chanceDrop
+                    creatureChanceDrop=chanceDrop,
+                    creatureLife=creatureLife
                 )
 
 @shared_task
