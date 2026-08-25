@@ -1,16 +1,18 @@
 from dataclasses import asdict
+from asgiref.sync import async_to_sync
 
 from celery import shared_task
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+from django.utils import timezone
 
 from mmo.services.fight_engine import FightEngine
 from mmo.services.player_engine import PlayerEngine
-
 from mmo.services.constants import MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE
-from mmo.models import WorldCreature, World, Player
+
+from mmo.models import WorldCreature, World, Player, Item
 from mmo.data.monster_names import MONSTER_NAMES
 
+from datetime import timedelta
 import random
 
 @shared_task
@@ -80,3 +82,15 @@ def recoverPlayerStatus():
 def tick():
     respawnCreatures.delay()
     recoverPlayerStatus.delay()
+
+@shared_task
+def cleanOrphanItems():
+    timeSince = timezone.now()-timedelta(days=1)
+
+    orphanItems = Item.objects.filter(
+        itemCreatedDate__lte=timeSince,
+        playerinventory__isnull=True
+    ).all()
+
+    if len(orphanItems) > 0:
+        orphanItems.delete()

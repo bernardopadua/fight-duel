@@ -24,6 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ggvg$!87-%av46ebigw&^x4_3^$^sg)2sq92vp$1pk8vp!3m4_'
 
 # SECURITY WARNING: don't run with debug turned on in production!
+# TODO: change this for production. When we get there. hehe
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
@@ -175,13 +176,17 @@ CELERY_BEAT_SCHEDULE = {
     'mmo-game-tick': {
         'task': 'mmo.tasks.tick',
         'schedule': 30.0, #seconds
-    }
+    },
+    'mmo-game-clean-orphan-items': {
+        'task': 'mmo.tasks.cleanOrphanItems',
+        'schedule': 30.0, #seconds. TODO: change for production. crontab
+    },
 }
 
 # Django Cache
 CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://localhost:6379",
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://localhost:6379',
     }
 }

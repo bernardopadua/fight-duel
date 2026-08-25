@@ -29,6 +29,7 @@ class Item(models.Model):
     itemWeight = models.IntegerField(default=1)
     itemType = models.CharField(max_length=50, choices=ItemType.choices)
     itemConsumableType = models.CharField(max_length=50, choices=ItemConsumableType.choices, null=True, blank=True)
+    itemCreatedDate = models.DateTimeField(auto_now_add=True)
 
 class Player(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
