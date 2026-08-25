@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
-from fkdauth.jwt_auth_utils import createToken
+from fkdauth.jwt_auth_utils import create_token
 
 class LoginView(APIView):
 
@@ -25,7 +25,7 @@ class LoginView(APIView):
         if not user:
             return Response({"error": "Invalid credentials"}, status=401)
         else:
-            token = createToken(user.id, settings.SECRET_KEY)
+            token = create_token(user.id, settings.SECRET_KEY)
             response = Response({"token": token}, status=200)
             response.set_cookie("Authorization-JWT", token, httponly=True, samesite="Lax")
             return response
@@ -45,7 +45,7 @@ class RegisterUserView(APIView):
             return Response({"error": "User already exists"}, status=400)
         else:
             user = User.objects.create_user(username=username, password=make_password(password))
-            token = createToken(user.id, settings.SECRET_KEY)
+            token = create_token(user.id, settings.SECRET_KEY)
             response = Response({"success": True, "token": token}, status=200)
             response.set_cookie("Authorization-JWT", token, httponly=True, samesite="Lax")
             return response

@@ -18,10 +18,10 @@ from mmo.routing import websocket_urlpatterns
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 
-djangoAsgiApplication = get_asgi_application()
+django_asgi_application = get_asgi_application()
 
 application = ProtocolTypeRouter({
-    "http": djangoAsgiApplication,
+    "http": django_asgi_application,
     "websocket": AllowedHostsOriginValidator(JWTASGIAuthMiddleware(
         URLRouter(websocket_urlpatterns)
     ))

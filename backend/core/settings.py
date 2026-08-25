@@ -185,7 +185,7 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 30.0, #seconds
     },
     'mmo-game-clean-orphan-items': {
-        'task': 'mmo.tasks.cleanOrphanItems',
+        'task': 'mmo.tasks.clean_orphan_items',
         'schedule': 30.0, #seconds. TODO: change for production. crontab
     },
 }

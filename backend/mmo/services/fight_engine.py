@@ -17,33 +17,53 @@ from .constants import (
 from mmo.services.drop_engine import DropEngine
 
 from random import randint
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from typing import Any
 
 @dataclass
 class FightStatus:
-    isPlayerAlive: bool = True
-    isMonsterAlive: bool = True
-    isFightOver: bool = False
-    isPlayerAttacking: float = 0.0
-    isCreatureAttacking: float = 0.0
-    playerLife: int | None = None
-    creatureLife: int | None = None
-    creatureLevel: int = 1
-    creatureChanceDrop: int = 0
+    is_player_alive: bool = True
+    is_monster_alive: bool = True
+    is_fight_over: bool = False
+    is_player_attacking: float = 0.0
+    is_creature_attacking: float = 0.0
+    player_life: int | None = None
+    creature_life: int | None = None
+    creature_level: int = 1
+    creature_chance_drop: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "isPlayerAlive": self.is_player_alive,
+            "isMonsterAlive": self.is_monster_alive,
+            "isFightOver": self.is_fight_over,
+            "isPlayerAttacking": self.is_player_attacking,
+            "isCreatureAttacking": self.is_creature_attacking,
+            "playerLife": self.player_life,
+            "creatureLife": self.creature_life,
+            "creatureLevel": self.creature_level,
+            "creatureChanceDrop": self.creature_chance_drop
+        }
 
 @dataclass
 class FightStart:
-    fightId: int
-    creatureName: str
-    creatureLevel: int
+    fight_id: int
+    creature_name: str
+    creature_level: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "fightId": self.fight_id,
+            "creatureName": self.creature_name,
+            "creatureLevel": self.creature_level
+        }
 
 class FightEngine:
 
     @classmethod
-    def shouldIFight(cls, playerId: int) -> FightStart | None:
-        p = Player.objects.filter(id=playerId).first()
+    def should_i_fight(cls, player_id: int) -> FightStart | None:
+        p = Player.objects.filter(id=player_id).first()
         if not p:
             return None
 
@@ -62,71 +82,71 @@ class FightEngine:
 
         if not Player.objects.filter(
             fight__isnull=True,
-            id=playerId
+            id=player_id
         ).exists():
             return None
 
-        fight = cls.lockFight(creature.id, playerId)
+        fight = cls.lock_fight(creature.id, player_id)
         if fight is None:
             return None
         
         return FightStart(
-            fightId=fight.id,
-            creatureName=creature.creature_name,
-            creatureLevel=creature.creature_level
+            fight_id=fight.id,
+            creature_name=creature.creature_name,
+            creature_level=creature.creature_level
         )
 
     @staticmethod
-    def setPlayerIsAttacking(playerId: int, playerLevel: int) -> float:
-        attackTime = max(TEMPO_MIN_ATTACK, 
-            TEMPO_MAX_ATTACK - ((TEMPO_MAX_ATTACK - TEMPO_MIN_ATTACK) * (playerLevel/LEVEL_MAX))
+    def set_player_attacking(player_id: int, player_level: int) -> float:
+        attack_time = max(TEMPO_MIN_ATTACK, 
+            TEMPO_MAX_ATTACK - ((TEMPO_MAX_ATTACK - TEMPO_MIN_ATTACK) * (player_level/LEVEL_MAX))
         )
-        cache.set(PLAYER_IS_ATTACKING.format(playerId=playerId), True, timeout=attackTime)
-        return attackTime
+        cache.set(PLAYER_IS_ATTACKING.format(player_id=player_id), True, timeout=attack_time)
+        return attack_time
 
     @staticmethod
-    def monsterAttackInterval(creatureLevel: int) -> float:
-        attackTime = max(MONSTER_MIN_ATTACK, 
-            MONSTER_MAX_ATTACK - ((MONSTER_MAX_ATTACK - MONSTER_MIN_ATTACK) * (creatureLevel/LEVEL_MAX))
+    def monster_attack_interval(creature_level: int) -> float:
+        attack_time = max(MONSTER_MIN_ATTACK, 
+            MONSTER_MAX_ATTACK - ((MONSTER_MAX_ATTACK - MONSTER_MIN_ATTACK) * (creature_level/LEVEL_MAX))
         )
-        return attackTime
+        return attack_time
 
     @staticmethod
-    def canIAttack(playerId: int) -> bool:
-        if cache.get(PLAYER_IS_ATTACKING.format(playerId=playerId)) is None:
+    def can_attack(player_id: int) -> bool:
+        if cache.get(PLAYER_IS_ATTACKING.format(player_id=player_id)) is None:
             return True
 
         return False
 
     @staticmethod
-    def lockFight(creatureId: int, playerId: int) -> Fight | None:
+    def lock_fight(creature_id: int, player_id: int) -> Fight | None:
         #maybe some more checking here?
         
         with transaction.atomic():
-            isCreatureLocked = WorldCreature.objects.select_for_update(
+            is_creature_locked = WorldCreature.objects.select_for_update(
                 skip_locked=True
-            ).filter(id=creatureId).first()
+            ).filter(id=creature_id).first()
 
-            if isCreatureLocked is None:
+            if is_creature_locked is None:
                 #TODO: Treat with a exception here
                 return
 
             with transaction.atomic():
                 Player.objects.filter(
-                    id=playerId
+                    id=player_id
                 ).update(
                     player_status="fighting"
                 )
                 
                 return Fight.objects.create(
-                    player_id=playerId,
-                    creature_id=creatureId
+                    player_id=player_id,
+                    creature_id=creature_id
                 )
 
     @staticmethod
-    def unlockFinishFight(fightId: int, fs: FightStatus | None = None) -> None:
+    def unlock_finish_fight(fight_id: int, fs: FightStatus | None = None) -> None:
         f = Fight.objects.filter(
-            id=fightId
+            id=fight_id
         ).select_related(
             "player",
             "creature"
@@ -143,7 +163,7 @@ class FightEngine:
                 p.player_status = "idle"
                 p.save()
             
-            if fs and not fs.isMonsterAlive:
+            if fs and not fs.is_monster_alive:
                 f.creature.delete() #this will delete fight
             else:
                 f.delete()
@@ -152,44 +172,44 @@ class FightEngine:
                 #TODO: Logging here
                 return 
 
-            itemsDict: list[dict[str, Any]] = []
-            if fs.isPlayerAlive and not fs.isMonsterAlive:
-                items = DropEngine.dropItems(fs.creatureLevel, fs.creatureChanceDrop)
-                itemsDict = [i.to_dict() for i in items]
+            items_dict: list[dict[str, Any]] = []
+            if fs.is_player_alive and not fs.is_monster_alive:
+                items = DropEngine.drop_items(fs.creature_level, fs.creature_chance_drop)
+                items_dict = [i.to_dict() for i in items]
 
                 #thinking on how I'm going to treat this
                 #but for now I think I will just let the client ask for a rest endpoint for player status refreshing
-                PlayerEngine.levelUp(p, fs.creatureLevel)
+                PlayerEngine.level_up(p, fs.creature_level)
 
         cl = get_channel_layer()
         if cl is None:
             return
 
         async_to_sync(cl.group_send)(
-            f"fight_{fightId}", 
+            f"fight_{fight_id}", 
             {
                 "type": "fight.finish.group", 
-                "fightId": fightId,
-                "fightStatus": asdict(fs) if fs else None,
-                "itemsDrop": itemsDict
+                "fightId": fight_id,
+                "fightStatus": fs.to_dict() if fs else None,
+                "itemsDrop": items_dict
             }
         )
 
     @staticmethod
-    def isFightStillActive(fightId: int) -> bool:
+    def is_fight_still_active(fight_id: int) -> bool:
         fight = Fight.objects.filter(
-            id=fightId
+            id=fight_id
         ).exists()
 
         return fight
 
     @classmethod
-    def attackMonster(cls, fightId: int) -> FightStatus | None:
+    def attack_monster(cls, fight_id: int) -> FightStatus | None:
         fight = Fight.objects.select_related(
             'creature',
             'player'
         ).filter(
-            id=fightId
+            id=fight_id
         ).first()
 
         if fight is None:
@@ -197,57 +217,57 @@ class FightEngine:
         
         c: WorldCreature = fight.creature
         p: Player = fight.player
-        playerAttackTime = 0.0
+        player_attack_time = 0.0
 
-        if not cls.canIAttack(p.id):
+        if not cls.can_attack(p.id):
             return
         else:
-            playerAttackTime = cls.setPlayerIsAttacking(p.id, p.player_level)
+            player_attack_time = cls.set_player_attacking(p.id, p.player_level)
         
         fs = FightStatus()
-        fs.isPlayerAttacking = playerAttackTime
+        fs.is_player_attacking = player_attack_time
 
-        totalPower = PlayerEngine.getPlayerTotalPower(p)
-        powerAttack = randint(
-            int(totalPower*PLAYER_POWER_ATTACK_VARIATION), 
-            totalPower
+        total_power = PlayerEngine.get_player_total_power(p)
+        power_attack = randint(
+            int(total_power * PLAYER_POWER_ATTACK_VARIATION), 
+            total_power
         )
-        powerAttack = 100 #I'm testing, keeping it for now.
-        c.creature_life = (c.creature_life - powerAttack) if (c.creature_life - powerAttack) > 0 else 0
-        fs.creatureLife = c.creature_life
-        fs.playerLife = p.player_life
+        power_attack = 100 #I'm testing, keeping it for now.
+        c.creature_life = (c.creature_life - power_attack) if (c.creature_life - power_attack) > 0 else 0
+        fs.creature_life = c.creature_life
+        fs.player_life = p.player_life
 
-        unlockFight = False
+        unlock_fight = False
 
         with transaction.atomic():
             if c.creature_life <= 0:
-                fs.creatureChanceDrop = c.creature_chance_drop
-                fs.creatureLevel = c.creature_level
+                fs.creature_chance_drop = c.creature_chance_drop
+                fs.creature_level = c.creature_level
                 #c.delete()
-                unlockFight = True
-                fs.isMonsterAlive = False
+                unlock_fight = True
+                fs.is_monster_alive = False
             else:
                 c.save()
 
             if p.player_life <= 0:
                 p.player_status = "dead"
                 p.save()
-                unlockFight = True
-                fs.isPlayerAlive = False
+                unlock_fight = True
+                fs.is_player_alive = False
 
-        if unlockFight:
-            fs.isFightOver = True
-            cls.unlockFinishFight(fightId, fs)
+        if unlock_fight:
+            fs.is_fight_over = True
+            cls.unlock_finish_fight(fight_id, fs)
 
         return fs
 
     @classmethod
-    def attackPlayer(cls, fightId: int, isCreatureAttacking: float = 0.0) -> FightStatus | None:
+    def attack_player(cls, fight_id: int, is_creature_attacking: float = 0.0) -> FightStatus | None:
         fight = Fight.objects.select_related(
             'creature',
             'player__player_equipped_armour__item',
         ).filter(
-            id=fightId
+            id=fight_id
         ).first()
 
         if fight is None:
@@ -256,57 +276,57 @@ class FightEngine:
         c: WorldCreature = fight.creature
         p: Player = fight.player
         fs = FightStatus()
-        fs.isCreatureAttacking = cls.monsterAttackInterval(c.creature_level)
+        fs.is_creature_attacking = cls.monster_attack_interval(c.creature_level)
 
-        powerAttack = randint(
-            int((c.creature_level+10)*MONSTER_POWER_ATTACK_VARIATION),
-            c.creature_level+10
+        power_attack = randint(
+            int((c.creature_level + 10) * MONSTER_POWER_ATTACK_VARIATION),
+            c.creature_level + 10
         )
-        defensePower = p.player_equipped_armour.item.item_power if p.player_equipped_armour else 0
-        totalDamage = max(0, (powerAttack-defensePower))
-        p.player_life = (p.player_life - totalDamage) if (p.player_life - totalDamage) > 0 else 0
-        fs.creatureLife = c.creature_life
-        fs.creatureLevel = c.creature_level
-        fs.playerLife = p.player_life
+        defense_power = p.player_equipped_armour.item.item_power if p.player_equipped_armour else 0
+        total_damage = max(0, (power_attack - defense_power))
+        p.player_life = (p.player_life - total_damage) if (p.player_life - total_damage) > 0 else 0
+        fs.creature_life = c.creature_life
+        fs.creature_level = c.creature_level
+        fs.player_life = p.player_life
 
         #check item power logic etc.
 
-        unlockFight = False
+        unlock_fight = False
 
         with transaction.atomic():
             if p.player_life <= 0:
                 p.player_status = "dead"
-                unlockFight = True
-                fs.isPlayerAlive = False
+                unlock_fight = True
+                fs.is_player_alive = False
 
             if c.creature_life <= 0:
                 c.delete()
-                unlockFight = True
-                fs.isMonsterAlive = False
+                unlock_fight = True
+                fs.is_monster_alive = False
 
             p.save()
 
-        if unlockFight:
-            fs.isFightOver = True
-            cls.unlockFinishFight(fightId, fs)
+        if unlock_fight:
+            fs.is_fight_over = True
+            cls.unlock_finish_fight(fight_id, fs)
 
         return fs
 
     @classmethod
-    def playerFlee(cls, fightId: int):
-        if not cls.isFightStillActive(fightId):
+    def player_flee(cls, fight_id: int):
+        if not cls.is_fight_still_active(fight_id):
             return None
         
-        f = Fight.objects.select_related('player').filter(id=fightId).first()
+        f = Fight.objects.select_related('player').filter(id=fight_id).first()
         if f is None:
             return None
         p: Player = f.player
 
         fs = FightStatus(
-            isPlayerAlive=True if p.player_status != "dead" else False,
-            isFightOver=True,
-            playerLife=p.player_life
+            is_player_alive=True if p.player_status != "dead" else False,
+            is_fight_over=True,
+            player_life=p.player_life
         )
 
-        cls.unlockFinishFight(fightId, fs)
+        cls.unlock_finish_fight(fight_id, fs)
 

@@ -20,4 +20,4 @@ MONSTER_BASE_LIFE=100
 MONSTER_LIFE_VARIATION=3
 
 # DJANGO CACHE
-PLAYER_IS_ATTACKING="player:attacking:{playerId}"
+PLAYER_IS_ATTACKING="player:attacking:{player_id}"

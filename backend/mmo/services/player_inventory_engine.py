@@ -11,13 +11,13 @@ from typing import Any
 
 class PlayerInventoryEngine:
     @staticmethod
-    def useItem(playerId: int, itemId: int) -> bool:
-        if not itemId:
+    def use_item(player_id: int, item_id: int) -> bool:
+        if not item_id:
             return False
 
         iv = PlayerInventory.objects.filter(
-            item_id=itemId,
-            player_id=playerId
+            item_id=item_id,
+            player_id=player_id
         ).select_related(
             "item",
             "player"
@@ -30,16 +30,16 @@ class PlayerInventoryEngine:
         with transaction.atomic():
             if item.item_type == Item.ItemType.CONSUMABLE:
                 if item.item_consumable_type == Item.ItemConsumableType.LIFE:
-                    totalLife = PlayerEngine.getPlayerCalulatedLife(player)
-                    if (player.player_life + item.item_power) > totalLife:
-                        player.player_life = totalLife
+                    total_life = PlayerEngine.get_player_calculated_life(player)
+                    if (player.player_life + item.item_power) > total_life:
+                        player.player_life = total_life
                     else:
                         player.player_life += item.item_power
                     player.save(update_fields=["player_life"])
                 elif item.item_consumable_type == Item.ItemConsumableType.STAMINA:
-                    totalStamina = PlayerEngine.getPlayerCalulatedStamina(player)
-                    if (player.player_stamina + item.item_power) > totalStamina:
-                        player.player_stamina = totalStamina
+                    total_stamina = PlayerEngine.get_player_calculated_stamina(player)
+                    if (player.player_stamina + item.item_power) > total_stamina:
+                        player.player_stamina = total_stamina
                     else:
                         player.player_stamina += item.item_power
                     player.save(update_fields=["player_stamina"])
@@ -56,26 +56,26 @@ class PlayerInventoryEngine:
         return True
 
     @staticmethod
-    def lootItems(playerId: int, itemsId: list) -> bool:
-        if not itemsId:
+    def loot_items(player_id: int, items_ids: list) -> bool:
+        if not items_ids:
             return False
 
         #validanting that all items is integers ids
-        for i in itemsId:
+        for i in items_ids:
             if not isinstance(i, int):
                 return False
         
         items = Item.objects.filter(
-            id__in=itemsId
+            id__in=items_ids
         ).annotate(
-            totalItemsWeight=Window(expression=Sum("item_weight"))
+            total_items_weight=Window(expression=Sum("item_weight"))
         )
 
-        if len(items) != len(itemsId):
+        if len(items) != len(items_ids):
             return False
 
         #This complication is intentional
-        subPlayerInventory = (
+        sub_player_inventory = (
             PlayerInventory.objects.filter(
                 player_id=OuterRef('pk')
             ).exclude(
@@ -85,24 +85,24 @@ class PlayerInventoryEngine:
             ).values(
                 "player_id"
             ).annotate(
-                totalItemsWeight=Sum("item__item_weight")
-            ).values("totalItemsWeight")[:1]
+                total_items_weight=Sum("item__item_weight")
+            ).values("total_items_weight")[:1]
         )
 
         player = Player.objects.filter(
-            id=playerId
+            id=player_id
         ).annotate(
-            totalItemsEquipped=(
+            total_items_equipped=(
                 Coalesce(F("player_equipped_weapon__item__item_weight"), Value(0)) + 
                 Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
             ),
-            totalInventoryWeight=Coalesce(Subquery(subPlayerInventory), Value(0))
+            total_inventory_weight=Coalesce(Subquery(sub_player_inventory), Value(0))
         ).first()
         if not player:
             return False
 
-        totalItemsWeghtInInventory = player.totalInventoryWeight + player.totalItemsEquipped
-        if ((totalItemsWeghtInInventory + items[0].totalItemsWeight)) > player.player_max_weight:
+        total_items_weight_in_inventory = player.total_inventory_weight + player.total_items_equipped
+        if ((total_items_weight_in_inventory + items[0].total_items_weight)) > player.player_max_weight:
             return False
 
         try:
@@ -120,20 +120,20 @@ class PlayerInventoryEngine:
         return True
 
     @staticmethod
-    def getPlayerInventory(playerId: int) -> list[dict[str, Any]]:
-        itemsInventory = PlayerInventory.objects.filter(
-            player_id=playerId
+    def get_player_inventory(player_id: int) -> list[dict[str, Any]]:
+        items_inventory = PlayerInventory.objects.filter(
+            player_id=player_id
         ).select_related("item").all()
         
-        itemsInventoryDict = [i.item.to_dict() for i in itemsInventory]
+        items_inventory_dict = [i.item.to_dict() for i in items_inventory]
 
-        return itemsInventoryDict
+        return items_inventory_dict
 
     #TODO: Remove this.
     @staticmethod
     def testing():
         #This complication is intentional
-        subPlayerInventory = (
+        sub_player_inventory = (
             PlayerInventory.objects.filter(
                 player_id=OuterRef('pk')
             ).exclude(
@@ -143,18 +143,18 @@ class PlayerInventoryEngine:
             ).values(
                 "player_id"
             ).annotate(
-                totalItemsWeight=Sum("item__item_weight")
-            ).values("totalItemsWeight")[:1]
+                total_items_weight=Sum("item__item_weight")
+            ).values("total_items_weight")[:1]
         )
 
         player = Player.objects.filter(
             id=7
         ).annotate(
-            totalItemsEquipped=(
+            total_items_equipped=(
                 Coalesce(F("player_equipped_weapon__item__item_weight"), Value(0)) + 
                 Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
             ),
-            totalInventoryWeight=Coalesce(Subquery(subPlayerInventory), Value(0))
+            total_inventory_weight=Coalesce(Subquery(sub_player_inventory), Value(0))
         ).first()
 
         print(player)
