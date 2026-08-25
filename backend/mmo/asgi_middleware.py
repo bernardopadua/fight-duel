@@ -5,7 +5,7 @@ from django.conf import settings
 
 from channels.db import database_sync_to_async
 
-from fkdauth.jwt_auth_utils import decodeToken, JWTError, JWTExpiredError
+from fkdauth.jwt_auth_utils import decode_token, JWTError, JWTExpiredError
 
 class JWTASGIAuthMiddleware:
     def __init__(self, app):
@@ -25,7 +25,7 @@ class JWTASGIAuthMiddleware:
     def get_user(self, token):
         # decodifica JWT, busca User, retorna AnonymousUser() se inválido
         try:
-            payload = decodeToken(token, settings.SECRET_KEY)
+            payload = decode_token(token, settings.SECRET_KEY)
 
             user = User.objects.filter(id=payload.get('userId', None))
 

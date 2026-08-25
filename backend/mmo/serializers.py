@@ -5,14 +5,13 @@ from rest_framework.serializers import ModelSerializer, ValidationError
 from mmo.models import Player
 
 class CreatePlayerSerializer(ModelSerializer):
-
     class Meta:
         model = Player
-        fields = ['user', 'playerName', 'playerLevel', 'playerExp', 'playerPower', 'playerStamina', 'playerEquipedWeapon', 'playerEquipedArmour', 'playerStatus', 'playerMaxWeight', 'playerCurrency']
-        read_only_fields = ['user', 'playerLevel', 'playerExp', 'playerPower', 'playerStamina', 'playerEquipedWeapon', 'playerEquipedArmour', 'playerStatus', 'playerMaxWeight', 'playerCurrency']
+        fields = ['user', 'player_name', 'player_level', 'player_exp', 'player_power', 'player_stamina', 'player_equipped_weapon', 'player_equipped_armour', 'player_status', 'player_max_weight', 'player_currency']
+        read_only_fields = ['user', 'player_level', 'player_exp', 'player_power', 'player_stamina', 'player_equipped_weapon', 'player_equipped_armour', 'player_status', 'player_max_weight', 'player_currency']
 
-    def validate_playerName(self, value: str):
-        if Player.objects.filter(playerName=value).exists():
+    def validate_player_name(self, value: str):
+        if Player.objects.filter(player_name=value).exists():
             raise ValidationError('Player name already exists')
         return value
     
@@ -24,5 +23,5 @@ class CreatePlayerSerializer(ModelSerializer):
 class GetPlayerSerializer(ModelSerializer):
     class Meta:
         model = Player
-        fields = ['user', 'playerName', 'playerLevel', 'playerExp', 'playerPower', 'playerStamina', 'playerEquipedWeapon', 'playerEquipedArmour', 'playerStatus', 'playerMaxWeight', 'playerCurrency']
-        read_only_fields = ['user', 'playerName', 'playerLevel', 'playerExp', 'playerPower', 'playerStamina', 'playerEquipedWeapon', 'playerEquipedArmour', 'playerStatus', 'playerMaxWeight', 'playerCurrency']
+        fields = ['user', 'player_name', 'player_level', 'player_exp', 'player_power', 'player_stamina', 'player_equipped_weapon', 'player_equipped_armour', 'player_status', 'player_max_weight', 'player_currency']
+        read_only_fields = ['user', 'player_name', 'player_level', 'player_exp', 'player_power', 'player_stamina', 'player_equipped_weapon', 'player_equipped_armour', 'player_status', 'player_max_weight', 'player_currency']

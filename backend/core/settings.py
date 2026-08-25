@@ -155,6 +155,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_RENDERER_CLASSES': (
+        'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
+        'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
+    ),
+    'DEFAULT_PARSER_CLASSES': (
+        'djangorestframework_camel_case.parser.CamelCaseJSONParser',
+    ),
 }
 
 # Django Channels
@@ -178,7 +185,7 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 30.0, #seconds
     },
     'mmo-game-clean-orphan-items': {
-        'task': 'mmo.tasks.cleanOrphanItems',
+        'task': 'mmo.tasks.clean_orphan_items',
         'schedule': 30.0, #seconds. TODO: change for production. crontab
     },
 }

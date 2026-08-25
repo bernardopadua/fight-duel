@@ -9,9 +9,9 @@ from mmo.services.constants import (
 
 class PlayerEngine:
     @staticmethod
-    def getPlayerId(userId: int) -> int | None:
+    def get_player_id(user_id: int) -> int | None:
         player = Player.objects.filter(
-            user_id=userId
+            user_id=user_id
         ).first()
 
         if player is None:
@@ -20,78 +20,78 @@ class PlayerEngine:
         return player.id
     
     @staticmethod
-    def getPlayerTotalPower(player: Player) -> int:
+    def get_player_total_power(player: Player) -> int:
         if not player:
             raise Exception("Player not found")
 
-        weapon = player.playerEquipedWeapon.item if player.playerEquipedWeapon else None
-        armour = player.playerEquipedArmour.item if player.playerEquipedArmour else None
-        wp = weapon.itemPower if weapon else 0
-        ap = armour.itemPower if armour else 0
-        itemsPower = wp + ap
-        totalPower = (player.playerPower + itemsPower)
+        weapon = player.player_equipped_weapon.item if player.player_equipped_weapon else None
+        armour = player.player_equipped_armour.item if player.player_equipped_armour else None
+        wp = weapon.item_power if weapon else 0
+        ap = armour.item_power if armour else 0
+        items_power = wp + ap
+        total_power = (player.player_power + items_power)
 
-        return totalPower
+        return total_power
     
     @classmethod
-    def getPlayerCalulatedLife(cls, player: Player) -> int:
-        totalPower = cls.getPlayerTotalPower(player)
+    def get_player_calculated_life(cls, player: Player) -> int:
+        total_power = cls.get_player_total_power(player)
         
-        return int(PLAYER_BASE_LIFE+(totalPower*PLAYER_LIFE_LINEAR_POWER))
+        return int(PLAYER_BASE_LIFE + (total_power * PLAYER_LIFE_LINEAR_POWER))
 
     @staticmethod
-    def getPlayerCalulatedStamina(player: Player) -> int:
+    def get_player_calculated_stamina(player: Player) -> int:
         if not player:
             raise Exception("Player not found")
 
         return PLAYER_TOTAL_STAMINA
 
     @staticmethod
-    def recoverPlayersStatus(players: QuerySet[Player, Player]) -> None:
+    def recover_players_status(players: QuerySet[Player, Player]) -> None:
         if not players:
             raise Exception("Player not found")
 
         for player in players:
-            totalPower = PlayerEngine.getPlayerTotalPower(player)
-            playerTotalLife = PlayerEngine.getPlayerCalulatedLife(player)
+            total_power = PlayerEngine.get_player_total_power(player)
+            player_total_life = PlayerEngine.get_player_calculated_life(player)
 
-            if player.playerStamina < PLAYER_TOTAL_STAMINA:
-                player.playerStamina = min(
+            if player.player_stamina < PLAYER_TOTAL_STAMINA:
+                player.player_stamina = min(
                     PLAYER_TOTAL_STAMINA,
-                    int(player.playerStamina + (PlayerEngine.getPlayerCalulatedStamina(player)*(totalPower/100)))
+                    int(player.player_stamina + (PlayerEngine.get_player_calculated_stamina(player) * (total_power / 100)))
                 )
-            if player.playerLife < playerTotalLife:
-                percentLifeRestore = int((totalPower * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5)
-                player.playerLife = min(playerTotalLife, player.playerLife + percentLifeRestore)
+            if player.player_life < player_total_life:
+                percent_life_restore = int((total_power * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5)
+                player.player_life = min(player_total_life, player.player_life + percent_life_restore)
 
-            player.save(update_fields=["playerLife", "playerStamina"])
+            player.save(update_fields=["player_life", "player_stamina"])
 
     @staticmethod
-    def requiredExp(player: Player) -> int:
+    def required_exp(player: Player) -> int:
         if not player:
             raise Exception("Player not found")
 
-        return int(100*(player.playerLevel**LEVELUP_VARIATION_POWER))
+        return int(100 * (player.player_level ** LEVELUP_VARIATION_POWER))
 
     @classmethod
-    def levelUp(cls, player: Player, creatureLevel: int):
+    def level_up(cls, player: Player, creature_level: int):
         if not player:
             raise Exception("Player not found")
 
-        expEarned = int(creatureLevel * LEVELUP_MULTIPLIER_EXP)
-        if player.playerExp + expEarned >= cls.requiredExp(player) \
-            and (player.playerLevel+1) <= MAX_PLAYER_LEVEL:
-            player.playerLevel += 1
-            player.playerExp = 0
-            player.playerPower += LEVELUP_PLUS_PLAYERPOWER
-            player.playerLife = cls.getPlayerCalulatedLife(player)
-            player.playerStamina = cls.getPlayerCalulatedStamina(player)
+        exp_earned = int(creature_level * LEVELUP_MULTIPLIER_EXP)
+        if player.player_exp + exp_earned >= cls.required_exp(player) \
+            and (player.player_level + 1) <= MAX_PLAYER_LEVEL:
+            player.player_level += 1
+            player.player_exp = 0
+            player.player_power += LEVELUP_PLUS_PLAYERPOWER
+            player.player_life = cls.get_player_calculated_life(player)
+            player.player_stamina = cls.get_player_calculated_stamina(player)
             player.save(update_fields=[
-                "playerLevel", "playerExp", 
-                "playerLife", "playerStamina", 
-                "playerPower"
+                "player_level", "player_exp", 
+                "player_life", "player_stamina", 
+                "player_power"
             ])
-        elif player.playerLevel < MAX_PLAYER_LEVEL:
-            player.playerExp += expEarned
-            player.save(update_fields=["playerExp"])
+        elif player.player_level < MAX_PLAYER_LEVEL:
+            player.player_exp += exp_earned
+            player.save(update_fields=["player_exp"])
 

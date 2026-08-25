@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed
 
-from fkdauth.jwt_auth_utils import decodeToken, JWTError, JWTExpiredError
+from fkdauth.jwt_auth_utils import decode_token, JWTError, JWTExpiredError
 
 class JWTAuthenticationBackend(BaseAuthentication):
     @override
@@ -17,12 +17,12 @@ class JWTAuthenticationBackend(BaseAuthentication):
             return None
         
         try:
-            authType = auth_header[0]
-            if authType != b'Bearer':
+            auth_type = auth_header[0]
+            if auth_type != b'Bearer':
                 return None
 
             token = auth_header[1].decode()
-            payload = decodeToken(token, settings.SECRET_KEY)
+            payload = decode_token(token, settings.SECRET_KEY)
 
             user = User.objects.filter(id=payload.get('userId', None))
 
