@@ -32,24 +32,24 @@ class PlayerInventoryEngine:
                     totalLife = PlayerEngine.getPlayerCalulatedLife(player)
                     if (player.playerLife+item.itemPower) > totalLife:
                         player.playerLife = totalLife
-                else:
-                    player.playerLife += item.itemPower
-                player.save(update_fields=["playerLife"])
+                    else:
+                        player.playerLife += item.itemPower
+                    player.save(update_fields=["playerLife"])
+                elif item.itemConsumableType == Item.ItemConsumableType.STAMINA:
+                    totalStamina = PlayerEngine.getPlayerCalulatedStamina(player)
+                    if (player.playerStamina+item.itemPower) > totalStamina:
+                        player.playerStamina = totalStamina
+                    else:
+                        player.playerStamina += item.itemPower
+                    player.save(update_fields=["playerStamina"])
                 
                 #This is cascade.
-                item.delete() 
-            elif item.itemConsumableType == Item.ItemConsumableType.STAMINA:
-                totalStamina = PlayerEngine.getPlayerCalulatedStamina(player)
-                if (player.playerStamina+item.itemPower) > totalStamina:
-                    player.playerStamina = totalStamina
-                else:
-                    player.playerStamina += item.itemPower
-                player.save(update_fields=["playerStamina"])
+                item.delete()
             elif item.itemType == Item.ItemType.ARMOUR:
-                player.playerEquipedArmour = item
+                player.playerEquipedArmour = iv
                 player.save(update_fields=["playerEquipedArmour"])
             elif item.itemType == Item.ItemType.WEAPON:
-                player.playerEquipedWeapon = item
+                player.playerEquipedWeapon = iv
                 player.save(update_fields=["playerEquipedWeapon"])
 
         return True
@@ -78,9 +78,9 @@ class PlayerInventoryEngine:
             PlayerInventory.objects.filter(
                 player_id=OuterRef('pk')
             ).exclude(
-                item_id=OuterRef('playerEquipedWeapon_id')
+                id=OuterRef('playerEquipedWeapon_id')
             ).exclude(
-                item_id=OuterRef('playerEquipedArmour_id')
+                id=OuterRef('playerEquipedArmour_id')
             ).values(
                 "player_id"
             ).annotate(
@@ -92,8 +92,8 @@ class PlayerInventoryEngine:
             id=playerId
         ).annotate(
             totalItemsEquipped=(
-                Coalesce(F("playerEquipedWeapon__itemWeight"), Value(0)) + 
-                Coalesce(F("playerEquipedArmour__itemWeight"), Value(0))
+                Coalesce(F("playerEquipedWeapon__item__itemWeight"), Value(0)) + 
+                Coalesce(F("playerEquipedArmour__item__itemWeight"), Value(0))
             ),
             totalInventoryWeight=Coalesce(Subquery(subPlayerInventory), Value(0))
         ).first()

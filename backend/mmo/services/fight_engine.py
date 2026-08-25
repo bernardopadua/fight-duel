@@ -148,18 +148,22 @@ class FightEngine:
             else:
                 f.delete()
 
+            if not fs:
+                #TODO: Logging here
+                return 
+
+            itemsDict: list[dict[str, Any]] = []
+            if fs.isPlayerAlive and not fs.isMonsterAlive:
+                items = DropEngine.dropItems(fs.creatureLevel, fs.creatureChanceDrop)
+                itemsDict = [model_to_dict(i) for i in items]
+
+                #thinking on how I'm going to treat this
+                #but for now I think I will just let the client ask for a rest endpoint for player status refreshing
+                PlayerEngine.levelUp(p, fs.creatureLevel)
+
         cl = get_channel_layer()
         if cl is None:
             return
-
-        if not fs:
-            #TODO: Logging here
-            return 
-
-        itemsDict: list[dict[str, Any]] = []
-        if fs.isPlayerAlive and not fs.isMonsterAlive:
-            items = DropEngine.dropItems(fs.creatureLevel, fs.creatureChanceDrop)
-            itemsDict = [model_to_dict(i) for i in items]
 
         async_to_sync(cl.group_send)(
             f"fight_{fightId}", 
@@ -241,7 +245,7 @@ class FightEngine:
     def attackPlayer(cls, fightId: int, isCreatureAttacking: float = 0.0) -> FightStatus | None:
         fight = Fight.objects.select_related(
             'creature',
-            'player'
+            'player__playerEquipedArmour__item',
         ).filter(
             id=fightId
         ).first()
@@ -258,7 +262,9 @@ class FightEngine:
             int((c.creatureLevel+10)*MONSTER_POWER_ATTACK_VARIATION),
             c.creatureLevel+10
         )
-        p.playerLife = (p.playerLife - powerAttack) if (p.playerLife - powerAttack) > 0 else 0
+        defensePower = p.playerEquipedArmour.item.itemPower if p.playerEquipedArmour else 0
+        totalDamage = max(0, (powerAttack-defensePower))
+        p.playerLife = (p.playerLife - totalDamage) if (p.playerLife - totalDamage) > 0 else 0
         fs.creatureLife = c.creatureLife
         fs.creatureLevel = c.creatureLevel
         fs.playerLife = p.playerLife

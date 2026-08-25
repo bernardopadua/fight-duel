@@ -96,6 +96,12 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
             itemId = data.get("data") or None
             if itemId is None:
                 return
+            if not await sync_to_async(PlayerInventoryEngine.useItem)(self.playerId, itemId):
+                return
+            await self.send(json.dumps({
+                "action": ToClientActions.INVENTORY_UPDATE,
+                "data": await sync_to_async(PlayerInventoryEngine.getPlayerInventory)(self.playerId)
+            }))
         elif data.get("action") == "testing":
             await sync_to_async(PlayerInventoryEngine.testing)()
 

@@ -63,12 +63,12 @@ def respawnCreatures():
 @shared_task
 def recoverPlayerStatus():
     """
-        I know that this is can be better with a better control of it.
+        I know that this can be better with a better control of it.
         But for a small project it fits well, I will maintain this for now.
     """
     players = Player.objects.select_related(
-        "playerEquipedWeapon",
-        "playerEquipedArmour"
+        "playerEquipedWeapon__item",
+        "playerEquipedArmour__item"
     ).exclude(
         playerStatus__in=["dead", "fighting"]
     ).all()
