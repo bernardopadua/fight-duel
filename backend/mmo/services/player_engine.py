@@ -95,3 +95,17 @@ class PlayerEngine:
             player.player_exp += exp_earned
             player.save(update_fields=["player_exp"])
 
+    @staticmethod
+    def player_dead_penalty(player: Player) -> None:
+        armour = player.player_equipped_armour.item if player.player_equipped_armour else None
+        weapon = player.player_equipped_weapon.item if player.player_equipped_weapon else None
+
+        if armour:
+            armour.delete()
+            player.player_equipped_armour = None
+        if weapon:
+            weapon.delete()
+            player.player_equipped_weapon = None
+
+        player.player_exp = 0
+        player.save(update_fields=["player_exp"])

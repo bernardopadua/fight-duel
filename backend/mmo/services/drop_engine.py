@@ -5,7 +5,11 @@ from mmo.data.item_names import (
     ITEM_ARMOURS_NAMES
 )
 
+from typing import TypeAlias
+
 import random
+
+Currency: TypeAlias = int
 
 class DropEngine:
     @staticmethod
@@ -71,12 +75,20 @@ class DropEngine:
             item_weight=item_weight,
             item_consumable_type=item_consumable_type
         )
-    
+
+    @staticmethod
+    def calculate_currency(creature_level: int) -> Currency:
+        return random.randint(int(creature_level * 8), int(creature_level * 12))
+
     @classmethod
-    def drop_items(cls, creature_level: int, creature_chance_drop: int) -> list[Item]:
+    def drop_items(cls, creature_level: int, creature_chance_drop: int) -> tuple[list[Item], Currency]:
         if random.randint(1, 100) > creature_chance_drop:
-            return []
+            return [], 0
         
+        currency = 0
+        if random.randint(1, 100) > creature_chance_drop:
+            currency = cls.calculate_currency(creature_level)
+
         qty_drops = random.randint(1, 3)
         items: list[Item] = []
 
@@ -84,4 +96,4 @@ class DropEngine:
             item = cls.create_drop_item(creature_level)
             items.append(item)
 
-        return items            
+        return items, currency

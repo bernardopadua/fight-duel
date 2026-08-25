@@ -71,7 +71,7 @@ def recover_player_status():
         "player_equipped_weapon__item",
         "player_equipped_armour__item"
     ).exclude(
-        player_status__in=["dead", "fighting"]
+        player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
     ).all()
 
     if len(players) > 0:

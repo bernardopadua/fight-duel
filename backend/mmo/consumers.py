@@ -51,7 +51,7 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
 
         if data.get("action") == ToServerActions.MOVE:
-            if (fs := await sync_to_async(FightEngine.should_i_fight)(self.player_id)) and fs:
+            if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
                 self.fight_id = fs.fight_id
                 await self.send(json.dumps({
                     "action": ToClientActions.FIGHT,

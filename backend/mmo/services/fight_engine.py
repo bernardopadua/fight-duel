@@ -62,7 +62,7 @@ class FightStart:
 class FightEngine:
 
     @classmethod
-    def should_i_fight(cls, player_id: int) -> FightStart | None:
+    def should_fight(cls, player_id: int) -> FightStart | None:
         p = Player.objects.filter(id=player_id).first()
         if not p:
             return None
@@ -112,8 +112,11 @@ class FightEngine:
         return attack_time
 
     @staticmethod
-    def can_attack(player_id: int) -> bool:
-        if cache.get(PLAYER_IS_ATTACKING.format(player_id=player_id)) is None:
+    def can_attack(player: Player) -> bool:
+        if player.player_life <= 0 or player.player_status != Player.PlayerStatus.IDLE:
+            return False
+
+        if cache.get(PLAYER_IS_ATTACKING.format(player_id=player.id)) is None:
             return True
 
         return False
@@ -135,7 +138,7 @@ class FightEngine:
                 Player.objects.filter(
                     id=player_id
                 ).update(
-                    player_status="fighting"
+                    player_status=Player.PlayerStatus.FIGHTING
                 )
                 
                 return Fight.objects.create(
@@ -154,14 +157,13 @@ class FightEngine:
         if not f:
             return
         
-        p = f.player
+        p: Player = f.player
         if not p: #pyright
             return 
 
         with transaction.atomic():
-            if p.player_status != "dead":
-                p.player_status = "idle"
-                p.save()
+            if p.player_status != Player.PlayerStatus.DEAD:
+                p.player_status = Player.PlayerStatus.IDLE
             
             if fs and not fs.is_monster_alive:
                 f.creature.delete() #this will delete fight
@@ -174,12 +176,16 @@ class FightEngine:
 
             items_dict: list[dict[str, Any]] = []
             if fs.is_player_alive and not fs.is_monster_alive:
-                items = DropEngine.drop_items(fs.creature_level, fs.creature_chance_drop)
+                items, currency = DropEngine.drop_items(fs.creature_level, fs.creature_chance_drop)
                 items_dict = [i.to_dict() for i in items]
+
+                p.player_currency += currency
 
                 #thinking on how I'm going to treat this
                 #but for now I think I will just let the client ask for a rest endpoint for player status refreshing
                 PlayerEngine.level_up(p, fs.creature_level)
+
+            p.save(update_fields=["player_status", "player_currency"])
 
         cl = get_channel_layer()
         if cl is None:
@@ -214,12 +220,12 @@ class FightEngine:
 
         if fight is None:
             return
-        
+
         c: WorldCreature = fight.creature
         p: Player = fight.player
         player_attack_time = 0.0
 
-        if not cls.can_attack(p.id):
+        if not cls.can_attack(p):
             return
         else:
             player_attack_time = cls.set_player_attacking(p.id, p.player_level)
@@ -239,21 +245,13 @@ class FightEngine:
 
         unlock_fight = False
 
-        with transaction.atomic():
-            if c.creature_life <= 0:
-                fs.creature_chance_drop = c.creature_chance_drop
-                fs.creature_level = c.creature_level
-                #c.delete()
-                unlock_fight = True
-                fs.is_monster_alive = False
-            else:
-                c.save()
-
-            if p.player_life <= 0:
-                p.player_status = "dead"
-                p.save()
-                unlock_fight = True
-                fs.is_player_alive = False
+        if c.creature_life <= 0:
+            fs.creature_chance_drop = c.creature_chance_drop
+            fs.creature_level = c.creature_level
+            unlock_fight = True
+            fs.is_monster_alive = False
+        else:
+            c.save(update_fields=["creature_life"])
 
         if unlock_fight:
             fs.is_fight_over = True
@@ -289,22 +287,16 @@ class FightEngine:
         fs.creature_level = c.creature_level
         fs.player_life = p.player_life
 
-        #check item power logic etc.
-
         unlock_fight = False
 
         with transaction.atomic():
             if p.player_life <= 0:
-                p.player_status = "dead"
+                p.player_status = Player.PlayerStatus.DEAD
                 unlock_fight = True
                 fs.is_player_alive = False
+                PlayerEngine.player_dead_penalty(p)
 
-            if c.creature_life <= 0:
-                c.delete()
-                unlock_fight = True
-                fs.is_monster_alive = False
-
-            p.save()
+            p.save(update_fields=["player_status", "player_life"])
 
         if unlock_fight:
             fs.is_fight_over = True
@@ -323,7 +315,7 @@ class FightEngine:
         p: Player = f.player
 
         fs = FightStatus(
-            is_player_alive=True if p.player_status != "dead" else False,
+            is_player_alive=True if p.player_status != Player.PlayerStatus.DEAD else False,
             is_fight_over=True,
             player_life=p.player_life
         )

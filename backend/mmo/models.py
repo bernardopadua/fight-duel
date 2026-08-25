@@ -45,6 +45,11 @@ class Item(models.Model):
         }
 
 class Player(models.Model):
+    class PlayerStatus(models.TextChoices):
+        IDLE = "idle"
+        FIGHTING = "fighting"
+        DEAD = "dead"
+
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     player_name = models.CharField(max_length=100)
     player_life = models.IntegerField(default=100)
@@ -54,7 +59,7 @@ class Player(models.Model):
     player_stamina = models.IntegerField(default=100)
     player_equipped_weapon = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
     player_equipped_armour = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")
-    player_status = models.CharField(max_length=50, default='idle') #idle, fighting, running, dead
+    player_status = models.CharField(max_length=50, choices=PlayerStatus.choices, default=PlayerStatus.IDLE)
     player_max_weight = models.IntegerField(default=100)
     player_currency = models.IntegerField(default=0)
 
