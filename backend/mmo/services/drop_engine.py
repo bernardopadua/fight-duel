@@ -65,11 +65,11 @@ class DropEngine:
             itemWeight = 1
 
         return Item.objects.create(
-            itemType=itemType,
-            itemName=itemName,
-            itemPower=itemPower,
-            itemWeight=itemWeight,
-            itemConsumableType=itemConsumableType
+            item_type=itemType,
+            item_name=itemName,
+            item_power=itemPower,
+            item_weight=itemWeight,
+            item_consumable_type=itemConsumableType
         )
     
     @classmethod

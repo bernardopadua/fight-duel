@@ -1,17 +1,19 @@
+from typing import Any
+
 from django.db import models
 from django.contrib.auth.models import User
 
 class World(models.Model):
-    worldName = models.CharField(max_length=100)
-    worldTotalCreatures = models.IntegerField(default=100)
-    worldMinLevel = models.IntegerField(default=1)
-    worldMaxLevel = models.IntegerField(default=0)
+    world_name = models.CharField(max_length=100)
+    world_total_creatures = models.IntegerField(default=100)
+    world_min_level = models.IntegerField(default=1)
+    world_max_level = models.IntegerField(default=0)
 
 class WorldCreature(models.Model):
-    creatureName = models.CharField(max_length=100)
-    creatureLevel = models.IntegerField(default=1)
-    creatureLife = models.IntegerField(default=100)
-    creatureChanceDrop = models.IntegerField(default=50)
+    creature_name = models.CharField(max_length=100)
+    creature_level = models.IntegerField(default=1)
+    creature_life = models.IntegerField(default=100)
+    creature_chance_drop = models.IntegerField(default=50)
     world = models.ForeignKey('World', on_delete=models.CASCADE)
 
 class Item(models.Model):
@@ -24,26 +26,37 @@ class Item(models.Model):
         LIFE = "life"
         STAMINA = "stamina"
 
-    itemName = models.CharField(max_length=100)
-    itemPower = models.IntegerField(default=0)
-    itemWeight = models.IntegerField(default=1)
-    itemType = models.CharField(max_length=50, choices=ItemType.choices)
-    itemConsumableType = models.CharField(max_length=50, choices=ItemConsumableType.choices, null=True, blank=True)
-    itemCreatedDate = models.DateTimeField(auto_now_add=True)
+    item_name = models.CharField(max_length=100)
+    item_power = models.IntegerField(default=0)
+    item_weight = models.IntegerField(default=1)
+    item_type = models.CharField(max_length=50, choices=ItemType.choices)
+    item_consumable_type = models.CharField(max_length=50, choices=ItemConsumableType.choices, null=True, blank=True)
+    item_created_date = models.DateTimeField(auto_now_add=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "itemName": self.item_name,
+            "itemPower": self.item_power,
+            "itemWeight": self.item_weight,
+            "itemType": self.item_type,
+            "itemConsumableType": self.item_consumable_type,
+            "itemCreatedDate": str(self.item_created_date),
+        }
 
 class Player(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    playerName = models.CharField(max_length=100)
-    playerLife = models.IntegerField(default=100)
-    playerLevel = models.IntegerField(default=1)
-    playerExp = models.IntegerField(default=0)
-    playerPower = models.IntegerField(default=10)
-    playerStamina = models.IntegerField(default=100)
-    playerEquipedWeapon = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
-    playerEquipedArmour = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")
-    playerStatus = models.CharField(max_length=50, default='idle') #idle, fighting, running, dead
-    playerMaxWeight = models.IntegerField(default=100)
-    playerCurrency = models.IntegerField(default=0)
+    player_name = models.CharField(max_length=100)
+    player_life = models.IntegerField(default=100)
+    player_level = models.IntegerField(default=1)
+    player_exp = models.IntegerField(default=0)
+    player_power = models.IntegerField(default=10)
+    player_stamina = models.IntegerField(default=100)
+    player_equipped_weapon = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
+    player_equipped_armour = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")
+    player_status = models.CharField(max_length=50, default='idle') #idle, fighting, running, dead
+    player_max_weight = models.IntegerField(default=100)
+    player_currency = models.IntegerField(default=0)
 
 class PlayerInventory(models.Model):
     item = models.ForeignKey('Item', on_delete=models.CASCADE)

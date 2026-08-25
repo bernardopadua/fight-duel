@@ -2,6 +2,7 @@ from django.db import transaction
 from django.db.models import Sum, F, Value, Window, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.forms import model_to_dict
+from djangorestframework_camel_case.util import camelize
 
 from mmo.models import Player, Item, PlayerInventory
 from mmo.services.player_engine import PlayerEngine
@@ -27,30 +28,30 @@ class PlayerInventoryEngine:
         item: Item = iv.item
         player: Player = iv.player
         with transaction.atomic():
-            if item.itemType == Item.ItemType.CONSUMABLE:
-                if item.itemConsumableType == Item.ItemConsumableType.LIFE:
+            if item.item_type == Item.ItemType.CONSUMABLE:
+                if item.item_consumable_type == Item.ItemConsumableType.LIFE:
                     totalLife = PlayerEngine.getPlayerCalulatedLife(player)
-                    if (player.playerLife+item.itemPower) > totalLife:
-                        player.playerLife = totalLife
+                    if (player.player_life + item.item_power) > totalLife:
+                        player.player_life = totalLife
                     else:
-                        player.playerLife += item.itemPower
-                    player.save(update_fields=["playerLife"])
-                elif item.itemConsumableType == Item.ItemConsumableType.STAMINA:
+                        player.player_life += item.item_power
+                    player.save(update_fields=["player_life"])
+                elif item.item_consumable_type == Item.ItemConsumableType.STAMINA:
                     totalStamina = PlayerEngine.getPlayerCalulatedStamina(player)
-                    if (player.playerStamina+item.itemPower) > totalStamina:
-                        player.playerStamina = totalStamina
+                    if (player.player_stamina + item.item_power) > totalStamina:
+                        player.player_stamina = totalStamina
                     else:
-                        player.playerStamina += item.itemPower
-                    player.save(update_fields=["playerStamina"])
+                        player.player_stamina += item.item_power
+                    player.save(update_fields=["player_stamina"])
                 
                 #This is cascade.
                 item.delete()
-            elif item.itemType == Item.ItemType.ARMOUR:
-                player.playerEquipedArmour = iv
-                player.save(update_fields=["playerEquipedArmour"])
-            elif item.itemType == Item.ItemType.WEAPON:
-                player.playerEquipedWeapon = iv
-                player.save(update_fields=["playerEquipedWeapon"])
+            elif item.item_type == Item.ItemType.ARMOUR:
+                player.player_equipped_armour = iv
+                player.save(update_fields=["player_equipped_armour"])
+            elif item.item_type == Item.ItemType.WEAPON:
+                player.player_equipped_weapon = iv
+                player.save(update_fields=["player_equipped_weapon"])
 
         return True
 
@@ -67,7 +68,7 @@ class PlayerInventoryEngine:
         items = Item.objects.filter(
             id__in=itemsId
         ).annotate(
-            totalItemsWeight=Window(expression=Sum("itemWeight"))
+            totalItemsWeight=Window(expression=Sum("item_weight"))
         )
 
         if len(items) != len(itemsId):
@@ -78,13 +79,13 @@ class PlayerInventoryEngine:
             PlayerInventory.objects.filter(
                 player_id=OuterRef('pk')
             ).exclude(
-                id=OuterRef('playerEquipedWeapon_id')
+                id=OuterRef('player_equipped_weapon_id')
             ).exclude(
-                id=OuterRef('playerEquipedArmour_id')
+                id=OuterRef('player_equipped_armour_id')
             ).values(
                 "player_id"
             ).annotate(
-                totalItemsWeight=Sum("item__itemWeight")
+                totalItemsWeight=Sum("item__item_weight")
             ).values("totalItemsWeight")[:1]
         )
 
@@ -92,8 +93,8 @@ class PlayerInventoryEngine:
             id=playerId
         ).annotate(
             totalItemsEquipped=(
-                Coalesce(F("playerEquipedWeapon__item__itemWeight"), Value(0)) + 
-                Coalesce(F("playerEquipedArmour__item__itemWeight"), Value(0))
+                Coalesce(F("player_equipped_weapon__item__item_weight"), Value(0)) + 
+                Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
             ),
             totalInventoryWeight=Coalesce(Subquery(subPlayerInventory), Value(0))
         ).first()
@@ -101,7 +102,7 @@ class PlayerInventoryEngine:
             return False
 
         totalItemsWeghtInInventory = player.totalInventoryWeight + player.totalItemsEquipped
-        if ((totalItemsWeghtInInventory + items[0].totalItemsWeight)) > player.playerMaxWeight:
+        if ((totalItemsWeghtInInventory + items[0].totalItemsWeight)) > player.player_max_weight:
             return False
 
         try:
@@ -124,7 +125,7 @@ class PlayerInventoryEngine:
             player_id=playerId
         ).select_related("item").all()
         
-        itemsInventoryDict = [model_to_dict(i.item) for i in itemsInventory]
+        itemsInventoryDict = [i.item.to_dict() for i in itemsInventory]
 
         return itemsInventoryDict
 
@@ -136,13 +137,13 @@ class PlayerInventoryEngine:
             PlayerInventory.objects.filter(
                 player_id=OuterRef('pk')
             ).exclude(
-                item_id=OuterRef('playerEquipedWeapon_id')
+                item_id=OuterRef('player_equipped_weapon_id')
             ).exclude(
-                item_id=OuterRef('playerEquipedArmour_id')
+                item_id=OuterRef('player_equipped_armour_id')
             ).values(
                 "player_id"
             ).annotate(
-                totalItemsWeight=Sum("item__itemWeight")
+                totalItemsWeight=Sum("item__item_weight")
             ).values("totalItemsWeight")[:1]
         )
 
@@ -150,8 +151,8 @@ class PlayerInventoryEngine:
             id=7
         ).annotate(
             totalItemsEquipped=(
-                Coalesce(F("playerEquipedWeapon__itemWeight"), Value(0)) + 
-                Coalesce(F("playerEquipedArmour__itemWeight"), Value(0))
+                Coalesce(F("player_equipped_weapon__item__item_weight"), Value(0)) + 
+                Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
             ),
             totalInventoryWeight=Coalesce(Subquery(subPlayerInventory), Value(0))
         ).first()

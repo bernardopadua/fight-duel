@@ -47,19 +47,19 @@ def respawnCreatures():
         cw = WorldCreature.objects.filter(
             world=i.id
         )
-        if cw.count() < i.worldTotalCreatures:
-            diff = i.worldTotalCreatures - cw.count()
+        if cw.count() < i.world_total_creatures:
+            diff = i.world_total_creatures - cw.count()
             for _ in range(diff):
                 creatureName = random.choice(MONSTER_NAMES)
-                creatureLevel = random.randint(i.worldMinLevel, i.worldMaxLevel)
-                chanceDrop = int((creatureLevel*100)/i.worldMaxLevel)
+                creatureLevel = random.randint(i.world_min_level, i.world_max_level)
+                chanceDrop = int((creatureLevel*100)/i.world_max_level)
                 creatureLife = int(MONSTER_BASE_LIFE + (creatureLevel * MONSTER_LIFE_VARIATION))
                 WorldCreature.objects.create(
                     world=i,
-                    creatureName=creatureName,
-                    creatureLevel=creatureLevel,
-                    creatureChanceDrop=chanceDrop,
-                    creatureLife=creatureLife
+                    creature_name=creatureName,
+                    creature_level=creatureLevel,
+                    creature_chance_drop=chanceDrop,
+                    creature_life=creatureLife
                 )
 
 @shared_task
@@ -69,10 +69,10 @@ def recoverPlayerStatus():
         But for a small project it fits well, I will maintain this for now.
     """
     players = Player.objects.select_related(
-        "playerEquipedWeapon__item",
-        "playerEquipedArmour__item"
+        "player_equipped_weapon__item",
+        "player_equipped_armour__item"
     ).exclude(
-        playerStatus__in=["dead", "fighting"]
+        player_status__in=["dead", "fighting"]
     ).all()
 
     if len(players) > 0:
@@ -88,7 +88,7 @@ def cleanOrphanItems():
     timeSince = timezone.now()-timedelta(days=1)
 
     orphanItems = Item.objects.filter(
-        itemCreatedDate__lte=timeSince,
+        item_created_date__lte=timeSince,
         playerinventory__isnull=True
     ).all()
 
