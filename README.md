@@ -1,4 +1,8 @@
 # fking-duel
+
+## TODO
+ - Refactoring orphan item. Add a created date and clean a day old orphans or maybe hours.
+
 This is a game about dueling with monster and other players.
 - auth
 - mmo

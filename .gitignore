@@ -4,3 +4,5 @@ backend/.redis
 __pycache__
 
 node_modules
+
+celerybeat-schedule
