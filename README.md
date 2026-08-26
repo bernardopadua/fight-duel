@@ -8,10 +8,14 @@ This is a game about dueling with monster and other players.
 ## Observations
 
 - camelCase, yes, I use it. It's against PEP 8, I know it. But I feel confortable using it.
+  - Is history now. Refactored.
 
 ## Status
 
 This project is a few days old, still in early/prototype stage. Requirements are not closed, stuff keeps changing shape almost every commit (models, rules, even how fight works). Don't expect it to be polished or final, it's a work in progress.
+
+### Some ideas
+- [ ] Remove item from inventory, get currency in return.
 
 ## Sections
 
