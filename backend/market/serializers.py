@@ -25,7 +25,7 @@ class MarketDealSerializer(ModelSerializer):
             'item_power'
         ]
 
-    def validate_item(self, value: Item):
+    def validate_item(self, value: Item) -> Item:
         check_item = PlayerInventory.objects.filter(
             item=value,
             player__user=self.context['request'].user
@@ -45,7 +45,7 @@ class MarketDealSerializer(ModelSerializer):
 
         return value
 
-    def validate_market_currency_amount(self, value: int):
+    def validate_market_currency_amount(self, value: int) -> int:
         if value <= 0:
             raise ValidationError('Value cannot be 0 or less than 0')
         

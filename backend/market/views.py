@@ -19,7 +19,8 @@ class MarketDealCreateListView(ListCreateAPIView):
     serializer_class = MarketDealSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
+    @override
+    def get_queryset(self) -> QuerySet[MarketDeal]:
         min_power = self.request.query_params.get('minPower')
         max_power = self.request.query_params.get('maxPower')
 
@@ -52,7 +53,8 @@ class MarketDealCreateListView(ListCreateAPIView):
 
         return queryset
     
-    def perform_create(self, serializer):
+    @override
+    def perform_create(self, serializer: MarketDealSerializer) -> None:
         try:
             p = Player.objects.get(user=self.request.user)
         except Player.DoesNotExist:
@@ -64,7 +66,8 @@ class MarketDealRUDView(RetrieveUpdateDestroyAPIView):
     serializer_class = MarketDealSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
+    @override
+    def get_queryset(self) -> QuerySet[MarketDeal]:
         return MarketDeal.objects.filter(
             player__user=self.request.user
         ).select_related(
@@ -121,4 +124,10 @@ class MarketDealPurchaseView(APIView):
             
             market_deal.delete()
 
-            return Response({'message': f'Successfully bought item {pk}'}, status=200)
+            return Response(
+                {
+                    'success': True, 
+                    'message': f'Successfully bought {item.item_name} from {item_owner.player_name}'
+                },
+                status=200
+            )

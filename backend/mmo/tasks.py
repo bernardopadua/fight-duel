@@ -40,7 +40,7 @@ def monster_attack(fight_id: int, channel_name: str) -> None:
     monster_attack.apply_async(args=[fight_id, channel_name], countdown=fs.is_creature_attacking)
 
 @shared_task
-def respawn_creatures():
+def respawn_creatures() -> None:
     w = World.objects.all()
     for i in w:
         cw = WorldCreature.objects.filter(
@@ -62,7 +62,7 @@ def respawn_creatures():
                 )
 
 @shared_task
-def recover_player_status():
+def recover_player_status() -> None:
     """
         I know that this can be better with a better control of it.
         But for a small project it fits well, I will maintain this for now.
@@ -78,12 +78,12 @@ def recover_player_status():
         PlayerEngine.recover_players_status(players)
 
 @shared_task
-def tick():
+def tick() -> None:
     respawn_creatures.delay()
     recover_player_status.delay()
 
 @shared_task
-def clean_orphan_items():
+def clean_orphan_items() -> None:
     time_since = timezone.now() - timedelta(days=1)
 
     orphan_items = Item.objects.filter(

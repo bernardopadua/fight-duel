@@ -6,6 +6,7 @@ from mmo.services.player_engine import PlayerEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
 from mmo.tasks import monster_attack
 
+from typing import override
 import json
 
 class ToClientActions:
@@ -23,7 +24,9 @@ class ToServerActions:
     USE_ITEM = "use.item"
 
 class FkingDuelConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
+    
+    @override
+    async def connect(self) -> None:
         if not "user" in self.scope or self.scope["user"] is None:
             await self.close()
             return
@@ -44,7 +47,8 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-    async def receive(self, text_data=None, bytes_data=None):
+    @override
+    async def receive(self, text_data=None, bytes_data=None) -> None:
         if text_data is None:
             return
        
@@ -103,13 +107,13 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
         elif data.get("action") == "testing":
             await sync_to_async(PlayerInventoryEngine.testing)()
 
-    async def fight_create_group(self, fight_id: int):
+    async def fight_create_group(self, fight_id: int) -> None:
         await self.channel_layer.group_add(
             f"fight_{fight_id}",
             self.channel_name
         )
 
-    async def fight_finish_group(self, event: dict):
+    async def fight_finish_group(self, event: dict) -> None:
         await self.channel_layer.group_discard(
             f"fight_{event['fightId']}",
             self.channel_name
@@ -129,7 +133,7 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
                 "data": fs
             }))
 
-    async def fight_update(self, event: dict):
+    async def fight_update(self, event: dict) -> None:
         data = event["data"]
         await self.send(json.dumps({
             "action": ToClientActions.FIGHT_UPDATE,

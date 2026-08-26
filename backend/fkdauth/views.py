@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.request import Request
 from rest_framework.permissions import AllowAny
 
 from fkdauth.jwt_auth_utils import create_token
@@ -13,7 +14,7 @@ class LoginView(APIView):
 
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         username = request.data.get("username")
         password = request.data.get("password")
         
@@ -34,7 +35,7 @@ class RegisterUserView(APIView):
 
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         username = request.data.get("username")
         password = request.data.get("password")
 

@@ -56,7 +56,7 @@ class PlayerInventoryEngine:
         return True
 
     @staticmethod
-    def loot_items(player_id: int, items_ids: list) -> bool:
+    def loot_items(player_id: int, items_ids: list[int]) -> bool:
         if not items_ids:
             return False
 
@@ -131,7 +131,7 @@ class PlayerInventoryEngine:
 
     #TODO: Remove this.
     @staticmethod
-    def testing():
+    def testing() -> None:
         #This complication is intentional
         sub_player_inventory = (
             PlayerInventory.objects.filter(

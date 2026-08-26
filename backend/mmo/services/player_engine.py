@@ -74,7 +74,7 @@ class PlayerEngine:
         return int(100 * (player.player_level ** LEVELUP_VARIATION_POWER))
 
     @classmethod
-    def level_up(cls, player: Player, creature_level: int):
+    def level_up(cls, player: Player, creature_level: int) -> None:
         if not player:
             raise Exception("Player not found")
 

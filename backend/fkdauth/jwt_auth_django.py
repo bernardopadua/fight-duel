@@ -1,6 +1,7 @@
 from typing import override
 
 from django.conf import settings
+from django.http import HttpRequest
 from django.contrib.auth.models import User
 
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
@@ -10,7 +11,7 @@ from fkdauth.jwt_auth_utils import decode_token, JWTError, JWTExpiredError
 
 class JWTAuthenticationBackend(BaseAuthentication):
     @override
-    def authenticate(self, request):
+    def authenticate(self, request: HttpRequest) -> tuple[User, str] | None:
         
         auth_header = get_authorization_header(request).split()
         if not auth_header or len(auth_header) < 2:
@@ -24,12 +25,12 @@ class JWTAuthenticationBackend(BaseAuthentication):
             token = auth_header[1].decode()
             payload = decode_token(token, settings.SECRET_KEY)
 
-            user = User.objects.filter(id=payload.get('userId', None))
+            user = User.objects.filter(id=payload.get('userId', None)).first()
 
-            if not user.exists():
+            if not user:
                 return None
 
-            return (user.first(), token)
+            return (user, token)
 
         except (JWTError, JWTExpiredError):
             return None
@@ -37,6 +38,6 @@ class JWTAuthenticationBackend(BaseAuthentication):
             raise AuthenticationFailed(f"Invalid JWT token: {e}")
     
     @override
-    def authenticate_header(self, request):
+    def authenticate_header(self, request: HttpRequest) -> str:
         return 'Bearer'
             

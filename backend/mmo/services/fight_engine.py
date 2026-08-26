@@ -305,7 +305,7 @@ class FightEngine:
         return fs
 
     @classmethod
-    def player_flee(cls, fight_id: int):
+    def player_flee(cls, fight_id: int) -> None:
         if not cls.is_fight_still_active(fight_id):
             return None
         
