@@ -113,7 +113,7 @@ class FightEngine:
 
     @staticmethod
     def can_attack(player: Player) -> bool:
-        if player.player_life <= 0 or player.player_status != Player.PlayerStatus.IDLE:
+        if player.player_life <= 0 or player.player_status != Player.PlayerStatus.FIGHTING:
             return False
 
         if cache.get(PLAYER_IS_ATTACKING.format(player_id=player.id)) is None:
