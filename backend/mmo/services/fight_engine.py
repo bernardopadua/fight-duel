@@ -238,7 +238,6 @@ class FightEngine:
             int(total_power * PLAYER_POWER_ATTACK_VARIATION), 
             total_power
         )
-        power_attack = 100 #I'm testing, keeping it for now.
         c.creature_life = (c.creature_life - power_attack) if (c.creature_life - power_attack) > 0 else 0
         fs.creature_life = c.creature_life
         fs.player_life = p.player_life

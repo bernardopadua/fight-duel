@@ -14,6 +14,8 @@ from market.serializers import MarketDealSerializer
 
 from typing import Any, override
 
+LIMIT_DEAL_PER_PAGE = 20
+
 class MarketDealCreateListView(ListCreateAPIView):
 
     serializer_class = MarketDealSerializer
@@ -27,6 +29,9 @@ class MarketDealCreateListView(ListCreateAPIView):
         min_currency_amount = self.request.query_params.get('minCurrencyAmount')
         max_currency_amount = self.request.query_params.get('maxCurrencyAmount')
 
+        order_by = self.request.query_params.get('orderBy', '')
+        asc_desc = self.request.query_params.get('ascDesc', 'desc')
+        
         def validate_value(value: Any) -> int:
             try:
                 return int(value)
@@ -34,6 +39,8 @@ class MarketDealCreateListView(ListCreateAPIView):
                 raise ValidationError('Invalid parameters')
             except Exception:
                 raise ValidationError('Something went wrong, contact support')
+
+        page = validate_value(self.request.query_params.get('page', 1))
 
         queryset = MarketDeal.objects.select_related('item', 'player')
 
@@ -51,7 +58,20 @@ class MarketDealCreateListView(ListCreateAPIView):
                 market_currency_amount__lte=validate_value(max_currency_amount)
             )
 
-        return queryset
+        field_orderby = 'market_created_date'
+        if order_by == 'price':
+            field_orderby = 'market_currency_amount'
+        elif order_by == 'power':
+            field_orderby = 'item__item_power'
+        elif order_by == 'weight':
+            field_orderby = 'item__item_weight'
+
+        if asc_desc != 'asc':
+            field_orderby = f'-{field_orderby}'
+
+        queryset = queryset.order_by(field_orderby)
+
+        return queryset[(page-1)*LIMIT_DEAL_PER_PAGE:page*LIMIT_DEAL_PER_PAGE]
     
     @override
     def perform_create(self, serializer: MarketDealSerializer) -> None:
