@@ -387,6 +387,25 @@ class MMOConsumerTests(TransactionTestCase):
         connected, _ = await communicator.connect()
         self.assertFalse(connected)
 
+    async def test_sudden_disconnect_player(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response)
+        self.assertIn('fightId', response['data'])
+        self.assertIsNotNone(response['data']['fightId'])
+
+        fight_id = response['data']['fightId']
+
+        await communicator.disconnect()
+
+        f = Fight.objects.filter(id=fight_id)
+        fight = await f.afirst()
+        self.assertIsNone(fight)
+
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_attack_spam(self, mock_monster_attack):
         self.player.player_power = 1

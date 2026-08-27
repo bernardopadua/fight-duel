@@ -25,12 +25,11 @@ class JWTTests(TestCase):
         self.assertNotEqual(token, new_token)
 
     def test_decode_token(self):
-        import time
         token = create_token(self.user.id, settings.SECRET_KEY)
         payload = decode_token(token, settings.SECRET_KEY)
         self.assertIn('userId', payload)
         self.assertEqual(self.user.id, payload['userId'])
-        
+
         with self.assertRaises(JWTError):
             _ = decode_token(token, "WRONG_SECRET")           
 

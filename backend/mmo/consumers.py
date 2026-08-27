@@ -24,7 +24,7 @@ class ToServerActions:
     USE_ITEM = "use.item"
     GET_INVENTORY = "get.inventory"
 
-class FkingDuelConsumer(AsyncWebsocketConsumer):
+class FightDuelConsumer(AsyncWebsocketConsumer):
     
     @override
     async def connect(self) -> None:
@@ -47,6 +47,12 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
         self.fight_id = None
 
         await self.accept()
+
+    @override
+    async def disconnect(self, code: int) -> None:
+        if self.fight_id:
+            await sync_to_async(FightEngine.player_flee)(self.fight_id)
+            await self.fight_finish_group({"fightId": self.fight_id})
 
     @override
     async def receive(self, text_data=None, bytes_data=None) -> None:
