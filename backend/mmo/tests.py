@@ -369,7 +369,7 @@ class MMOConsumerTests(TransactionTestCase):
         except Exception:
             pass
 
-    async def _connect_to_websocket(self) -> WebsocketCommunicator:
+    async def _connect_to_websocket(self, *, test_expired_connection: bool = False) -> WebsocketCommunicator:
         token_headers = [
             (b'cookie', f'Authorization-JWT={self.token}'.encode()),
         ]
@@ -378,10 +378,19 @@ class MMOConsumerTests(TransactionTestCase):
             headers=token_headers
         )
         connected, _ = await communicator.connect()
+
+        if test_expired_connection:
+            self.assertFalse(connected)    
+            return communicator
+
         self.assertTrue(connected)
         self.addCleanup(async_to_sync(self._safe_disconnect), communicator)
 
         return communicator
+
+    async def test_websocket_expired_token_connect(self):
+        self.token = create_token(self.user.id, settings.SECRET_KEY, time_expires=-1)
+        communicator = await self._connect_to_websocket(test_expired_connection=True)
 
     async def test_websocket_invalid_payload(self):
         communicator = await self._connect_to_websocket()
