@@ -81,8 +81,18 @@ class MMOPlayerTests(APITestCase):
         self.assertEqual(response.json()['playerName'], 'TestPlayer')
         self.assertEqual(response.json()['playerLevel'], 10)
 
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "game-fight-engine-tests"
+        }
+    }
+)
 class MMOPlayerFightTests(TestCase):
     def setUp(self) -> None:
+        cache.clear()
+
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
         self.player_life = 100
         self.player = Player.objects.create(
