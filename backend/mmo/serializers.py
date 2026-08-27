@@ -4,6 +4,8 @@ from rest_framework.serializers import ModelSerializer, ValidationError
 
 from mmo.models import Player
 
+from typing import override
+
 class CreatePlayerSerializer(ModelSerializer):
     class Meta:
         model = Player

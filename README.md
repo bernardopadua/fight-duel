@@ -14,7 +14,12 @@ This is a game about dueling with monster and other players.
 
 This project is a few days old, still in early/prototype stage. Requirements are not closed, stuff keeps changing shape almost every commit (models, rules, even how fight works). Don't expect it to be polished or final, it's a work in progress.
 
+### Bugs
+- Player can LOOT randomly through command loot item_id
+  - [ ] Implement temporary fix, create date on item, so the routine that cleans orphan items cleans 2 minutes items old.
+
 ### Some ideas
+- [ ] Balance leveling up
 - [ ] Remove item from inventory, get currency in return.
 
 ## Sections
