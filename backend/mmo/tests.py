@@ -328,7 +328,40 @@ class GameConsumerTests(TransactionTestCase):
         return communicator
 
     async def test_connect_without_token_error(self):
-        pass
+        communicator = WebsocketCommunicator(
+            application, '/ws/fight/',
+            headers=[]
+        )
+        connected, _ = await communicator.connect()
+        self.assertFalse(connected)
+
+    async def test_connect_with_invalid_token(self):
+        token_headers = [
+            (b'cookie', f'Authorization-JWT=invalid.token.invalid'.encode()),
+        ]
+        communicator = WebsocketCommunicator(
+            application, '/ws/fight/',
+            headers=token_headers
+        )
+        connected, _ = await communicator.connect()
+        self.assertFalse(connected)
+
+    @patch('mmo.consumers.monster_attack.apply_async')
+    async def test_attack_spam(self, mock_monster_attack):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response)
+        self.assertIn('fightId', response['data'])
+        self.assertIsNotNone(response['data']['fightId'])
+
+        # SEND MOVE AGAIN
+        # SEND ATTACK AGAIN
+
+        await communicator.disconnect()
 
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_websocket_move_and_fight(self, mock_monster_attack):
@@ -369,7 +402,7 @@ class GameConsumerTests(TransactionTestCase):
         self.assertFalse(response['data']['isMonsterAlive'])
 
         response = await communicator.receive_json_from()
-        self.assertEqual(response['action'], 'fight.finish')
+        self.assertEqual(response['action'], ToClientActions.FIGHT_FINISH)
         self.assertIn('data', response)
         self.assertIn('isFightOver', response['data'])
         self.assertTrue(response['data']['isFightOver'])
