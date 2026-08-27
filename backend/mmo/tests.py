@@ -2,6 +2,7 @@ from asgiref.sync import async_to_sync, sync_to_async
 from django.contrib.auth.models import User
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.conf import settings
+from django.core.cache import cache
 
 from unittest.mock import patch
 
@@ -24,6 +25,20 @@ class MMOPlayerTests(APITestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
         self.client.force_authenticate(user=self.user)
+
+    def test_create_new_player_not_logged_in(self):
+        self.client.logout()
+        response = self.client.post(
+            '/api/mmo/create/player/', 
+            {'playerName': 'NewPlayer'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_player_not_logged_in(self):
+        self.client.logout()
+        response = self.client.get('/api/mmo/player/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_new_player(self):
         response = self.client.post(
@@ -247,9 +262,19 @@ class MMOPlayerFightTests(TestCase):
         self.assertEqual(self.player.player_level, 10)
         self.assertEqual(self.player.player_exp, 0)
 
-@override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
-class GameConsumerTests(TransactionTestCase):
+@override_settings(
+    CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}},
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "game-consumer-tests"
+        }
+    }
+)
+class MMOConsumerTests(TransactionTestCase):
     def setUp(self) -> None:
+        cache.clear()
+
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
         self.token = create_token(self.user.id, settings.SECRET_KEY)
 
@@ -313,6 +338,12 @@ class GameConsumerTests(TransactionTestCase):
             item_weight=self.item_weight_weapon
         )
 
+    async def _safe_disconnect(self, communicator: WebsocketCommunicator) -> None:
+        try:
+            await communicator.disconnect()
+        except Exception:
+            pass
+
     async def _connect_to_websocket(self) -> WebsocketCommunicator:
         token_headers = [
             (b'cookie', f'Authorization-JWT={self.token}'.encode()),
@@ -323,7 +354,7 @@ class GameConsumerTests(TransactionTestCase):
         )
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
-        self.addCleanup(async_to_sync(communicator.disconnect))
+        self.addCleanup(async_to_sync(self._safe_disconnect), communicator)
 
         return communicator
 
@@ -348,6 +379,9 @@ class GameConsumerTests(TransactionTestCase):
 
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_attack_spam(self, mock_monster_attack):
+        self.player.player_power = 1
+        await self.player.asave(update_fields=['player_power'])
+        
         communicator = await self._connect_to_websocket()
 
         await communicator.send_json_to({'action': ToServerActions.MOVE})
@@ -358,8 +392,20 @@ class GameConsumerTests(TransactionTestCase):
         self.assertIn('fightId', response['data'])
         self.assertIsNotNone(response['data']['fightId'])
 
-        # SEND MOVE AGAIN
-        # SEND ATTACK AGAIN
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.send_json_to({'action': ToServerActions.ATTACK})
+        response = await communicator.receive_json_from()
+        self.assertIn('action', response)
+        self.assertEqual(response['action'], ToClientActions.FIGHT_UPDATE)
+        self.assertIn('data', response)
+
+        await communicator.send_json_to({'action': ToServerActions.ATTACK})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.send_json_to({'action': ToServerActions.ATTACK})
+        self.assertTrue(await communicator.receive_nothing())
 
         await communicator.disconnect()
 
@@ -542,5 +588,153 @@ class GameConsumerTests(TransactionTestCase):
 
         await self.player.arefresh_from_db()
         self.assertEqual(self.player.player_life, await sync_to_async(PlayerEngine.get_player_calculated_life)(self.player))
+
+        await communicator.disconnect()
+
+    #use item wear armour
+    async def test_websocket_move_and_use_item_wear_armour(self):
+        communicator = await self._connect_to_websocket()
+        self.player.player_life = 60
+        self.player.player_power = 10
+        self.player.player_level = 1
+        await self.player.asave(update_fields=['player_life', 'player_power', 'player_level'])
+
+        looted_items = await sync_to_async(PlayerInventoryEngine.loot_items)(self.player.id, [self.item_armour.id])
+        self.assertTrue(looted_items)
+
+        await communicator.send_json_to({'action': ToServerActions.GET_INVENTORY})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        self.assertEqual(len(response['data']), 1)
+        self.assertEqual(response['data'][0]['itemName'], self.item_armour.item_name)
+        self.assertEqual(response['data'][0]['id'], self.item_armour.id)
+
+        await communicator.send_json_to({'action': ToServerActions.USE_ITEM, 'data': self.item_armour.id})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        self.assertEqual(len(response['data']), 1)
+        self.assertEqual(response['data'][0]['itemName'], self.item_armour.item_name)
+        self.assertEqual(response['data'][0]['id'], self.item_armour.id)
+
+        await self.player.arefresh_from_db()
+        self.assertEqual(self.player.player_power, 10)
+        self.assertEqual(self.player.player_power + self.item_armour.item_power, await sync_to_async(PlayerEngine.get_player_total_power)(self.player))
+
+        await communicator.disconnect()
+
+    @patch('mmo.services.fight_engine.DropEngine.drop_items')
+    @patch('mmo.consumers.monster_attack.apply_async')
+    async def test_player_dead_by_monster(self, mock_monster_attack, mock_drop_items):
+        self.player.player_life = 1
+        await self.player.asave(update_fields=['player_life'])
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response)
+        self.assertIn('fightId', response['data'])
+        self.assertIsNotNone(response['data']['fightId'])
+        
+        mock_monster_attack.assert_called_once() 
+        channel_name = mock_monster_attack.call_args.kwargs['args'][1]
+
+        fight_id = response['data']['fightId']
+
+        #monster attack
+        from mmo.tasks import monster_attack
+        await sync_to_async(monster_attack)(fight_id, channel_name)
+
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT_FINISH)
+        self.assertIn('data', response)
+        self.assertIn('isPlayerAlive', response['data'])
+        self.assertIn('isMonsterAlive', response['data'])
+        self.assertFalse(response['data']['isPlayerAlive'])
+        self.assertTrue(response['data']['isMonsterAlive'])
+
+        await communicator.disconnect()
+
+    async def test_attack_no_fight_id(self):
+        communicator = await self._connect_to_websocket()
+        await communicator.send_json_to({'action': ToServerActions.ATTACK})
+        self.assertTrue(await communicator.receive_nothing())
+        await communicator.disconnect()
+
+    async def test_flee_no_fight_id(self):
+        communicator = await self._connect_to_websocket()
+        await communicator.send_json_to({'action': ToServerActions.FLEE})
+        self.assertTrue(await communicator.receive_nothing())
+        await communicator.disconnect()
+
+    async def test_loot_no_fight_id(self):
+        communicator = await self._connect_to_websocket()
+        await communicator.send_json_to({'action': ToServerActions.LOOT, 'data': [self.item_armour.id]})
+        self.assertTrue(await communicator.receive_nothing())
+        await communicator.disconnect()
+
+    async def test_fight_loot_empty_list_or_none_or_nonexistance(self):
+        self.creature.creature_chance_drop = 100
+        await self.creature.asave(update_fields=['creature_chance_drop'])
+
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response)
+        self.assertIn('fightId', response['data'])
+        self.assertIsNotNone(response['data']['fightId'])
+
+        await communicator.send_json_to({'action': ToServerActions.ATTACK})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT_UPDATE)
+        self.assertIn('data', response)
+        self.assertIn('isFightOver', response['data'])
+        self.assertTrue(response['data']['isFightOver']) #player attack power 999
+
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT_DROP_ITEMS)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT_FINISH)
+        self.assertIn('data', response)
+        self.assertIn('isFightOver', response['data'])
+        self.assertTrue(response['data']['isFightOver'])
+
+        await communicator.send_json_to({'action': ToServerActions.LOOT, 'data': None})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.send_json_to({'action': ToServerActions.LOOT, 'data': 123})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.send_json_to({'action': ToServerActions.LOOT, 'data': [123, 456]})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.disconnect()
+
+    async def test_send_unknown_action(self):
+        communicator = await self._connect_to_websocket()
+        await communicator.send_json_to({'action': 'unknown'})
+        self.assertTrue(await communicator.receive_nothing())
+        await communicator.disconnect()
+
+    async def test_send_use_item_with_no_data_or_random_data(self):
+        communicator = await self._connect_to_websocket()
+        await communicator.send_json_to({'action': ToServerActions.USE_ITEM})
+        self.assertTrue(await communicator.receive_nothing())
+        
+        await communicator.send_json_to({'action': ToServerActions.USE_ITEM, 'data': None})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.send_json_to({'action': ToServerActions.USE_ITEM, 'data': 999})
+        self.assertTrue(await communicator.receive_nothing())
 
         await communicator.disconnect()

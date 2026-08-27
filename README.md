@@ -16,6 +16,7 @@ This project is a few days old, still in early/prototype stage. Requirements are
 
 ### Bugs
 - Player can LOOT randomly through command loot item_id
+  - [ ] Implement temporary fix, create date on item, so the routine that cleans orphan items cleans 2 minutes items old.
 
 ### Some ideas
 - [ ] Balance leveling up
