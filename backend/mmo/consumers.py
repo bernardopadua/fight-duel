@@ -10,6 +10,8 @@ from typing import override
 import json
 
 class ToClientActions:
+    ERROR = "error"
+
     FIGHT = "fight"
     FIGHT_UPDATE = "fight.update"
     FIGHT_DROP_ITEMS = "fight.drop.items"
@@ -59,7 +61,15 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         if text_data is None:
             return
        
-        data = json.loads(text_data)
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            await self.send(json.dumps({
+                "action": ToClientActions.ERROR,
+                "data": "Invalid JSON"
+            }))
+            await self.close()
+            return
 
         if data.get("action") == ToServerActions.MOVE:
             if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
