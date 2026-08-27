@@ -176,8 +176,9 @@ CHANNEL_LAYERS = {
 }
 
 # Celery
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_REDIS_HOST_DB = 'redis://localhost:6379/{db}'
+CELERY_BROKER_URL = CELERY_REDIS_HOST_DB.format(db='0')
+CELERY_RESULT_BACKEND = CELERY_REDIS_HOST_DB.format(db='0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
