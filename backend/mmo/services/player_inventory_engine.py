@@ -79,9 +79,9 @@ class PlayerInventoryEngine:
             PlayerInventory.objects.filter(
                 player_id=OuterRef('pk')
             ).exclude(
-                id=OuterRef('player_equipped_weapon_id')
+                id=Coalesce(OuterRef('player_equipped_weapon_id'), Value(0))
             ).exclude(
-                id=OuterRef('player_equipped_armour_id')
+                id=Coalesce(OuterRef('player_equipped_armour_id'), Value(0))
             ).values(
                 "player_id"
             ).annotate(
@@ -89,7 +89,8 @@ class PlayerInventoryEngine:
             ).values("total_items_weight")[:1]
         )
 
-        player = Player.objects.filter(
+        #query to debug eventually
+        player_query = Player.objects.filter(
             id=player_id
         ).annotate(
             total_items_equipped=(
@@ -97,7 +98,8 @@ class PlayerInventoryEngine:
                 Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
             ),
             total_inventory_weight=Coalesce(Subquery(sub_player_inventory), Value(0))
-        ).first()
+        )
+        player = player_query.first()
         if not player:
             return False
 

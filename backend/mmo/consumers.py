@@ -22,6 +22,7 @@ class ToServerActions:
     FLEE = "flee"
     LOOT = "loot"
     USE_ITEM = "use.item"
+    GET_INVENTORY = "get.inventory"
 
 class FkingDuelConsumer(AsyncWebsocketConsumer):
     
@@ -57,16 +58,16 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
         if data.get("action") == ToServerActions.MOVE:
             if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
                 self.fight_id = fs.fight_id
-                await self.send(json.dumps({
-                    "action": ToClientActions.FIGHT,
-                    "data": fs.to_dict()
-                }))
                 await self.fight_create_group(fs.fight_id)
                 interval = await sync_to_async(FightEngine.monster_attack_interval)(fs.creature_level)
                 monster_attack.apply_async(
                     args=[fs.fight_id, self.channel_name], 
                     countdown=interval
                 )
+                await self.send(json.dumps({
+                    "action": ToClientActions.FIGHT,
+                    "data": fs.to_dict()
+                }))
         elif data.get("action") == ToServerActions.ATTACK:
             if not self.fight_id:
                 return
@@ -100,6 +101,11 @@ class FkingDuelConsumer(AsyncWebsocketConsumer):
                 return
             if not await sync_to_async(PlayerInventoryEngine.use_item)(self.player_id, item_id):
                 return
+            await self.send(json.dumps({
+                "action": ToClientActions.INVENTORY_UPDATE,
+                "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
+            }))
+        elif data.get("action") == ToServerActions.GET_INVENTORY:
             await self.send(json.dumps({
                 "action": ToClientActions.INVENTORY_UPDATE,
                 "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
