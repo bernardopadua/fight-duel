@@ -16,10 +16,10 @@ from mmo.tasks import clean_orphan_items, respawn_creatures, recover_player_stat
 
 from datetime import timedelta
 
-@override_settings(
-    CELERY_RESULT_BACKEND=CELERY_REDIS_HOST_DB.format(db='15'),
-    CELERY_BROKER_URL=CELERY_REDIS_HOST_DB.format(db='15')
-)
+# @override_settings(
+#     CELERY_RESULT_BACKEND=CELERY_REDIS_HOST_DB.format(db='15'),
+#     CELERY_BROKER_URL=CELERY_REDIS_HOST_DB.format(db='15')
+# )
 class MMOCeleryWorkerTests(TransactionTestCase):
 
     @classmethod
@@ -27,6 +27,11 @@ class MMOCeleryWorkerTests(TransactionTestCase):
         super().setUpClass()
         cls.worker = start_worker(app, perform_ping_check=False)
         cls.worker.__enter__()
+
+        app.conf.update(
+            result_backend=CELERY_REDIS_HOST_DB.format(db='15'),
+            broker_url=CELERY_REDIS_HOST_DB.format(db='15')
+        )
 
     @classmethod
     def tearDownClass(cls):
