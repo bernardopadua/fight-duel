@@ -1,0 +1,36 @@
+services:
+  backend:
+    image: ghcr.io/bernardopadua/fight-duel-backend:latest
+    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    restart: unless-stopped
+    environment:
+      - FDUEL_MIGRATE=true
+    env_file: .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fduel-api.rule=Host(`${FDUEL_DOMAIN}`)"
+      - "traefik.http.routers.fduel-api.entrypoints=websecure"
+      - "traefik.http.routers.fduel-api.tls.certresolver=le"
+      - "traefik.http.services.fduel-api.loadbalancer.server.port=8000"
+    networks:
+      - traefik-net
+
+  celery-worker:
+    image: ghcr.io/bernardopadua/fight-duel-backend:latest
+    restart: unless-stopped
+    command: celery -A core.celery worker -l info
+    env_file: .env
+    networks:
+      - traefik-net
+
+  celery-beat:
+    image: ghcr.io/bernardopadua/fight-duel-backend:latest
+    restart: unless-stopped
+    command: celery -A core.celery beat -l info
+    env_file: .env
+    networks:
+      - traefik-net
+
+networks:
+  traefik-net:
+    external: true
