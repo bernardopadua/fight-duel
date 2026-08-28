@@ -49,7 +49,7 @@ class RegisterUserView(APIView):
         if User.objects.filter(username=username).exists():
             return Response({"error": "User already exists"}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            user = User.objects.create_user(username=username, password=make_password(password))
+            user = User.objects.create_user(username=username, password=password)
             token = create_token(user.id, settings.SECRET_KEY)
             response = Response({
                 "success": True, 
