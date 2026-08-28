@@ -28,11 +28,15 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 # TODO: change this for production. When we get there. hehe
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ['DJANGO_ALLOWED_HOSTS'].split(",")
+]
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    origin.strip()
+    for origin in os.environ['CORS_ALLOWED_ORIGINS'].split(",")
 ]
 
 # Application definition
@@ -42,11 +46,11 @@ INSTALLED_APPS = [
 
     'corsheaders',
 
-    'django.contrib.admin',
+    #'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
+    #'django.contrib.sessions',
+    #'django.contrib.messages',
     'django.contrib.staticfiles',
 
     'rest_framework',
@@ -59,11 +63,11 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    #'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
+    #'django.middleware.csrf.CsrfViewMiddleware',
+    #'django.contrib.auth.middleware.AuthenticationMiddleware',
+    #'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 'fkdauth.middleware.JWTMiddleware', #using default auth from rest
 ]
@@ -187,13 +191,15 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_BEAT_SCHEDULE = {
     'mmo-game-tick': {
         'task': 'mmo.tasks.tick',
-        'schedule': 30.0, #seconds
+        'schedule': float(os.environ['CELERY_BEAT_MMO_TICK']), #seconds
     },
     'mmo-game-clean-orphan-items': {
         'task': 'mmo.tasks.clean_orphan_items',
-        'schedule': 30.0, #seconds. TODO: change for production. crontab
+        'schedule': float(os.environ['CELERY_BEAT_MMO_ORPHAN_ITEMS']), #seconds
     },
 }
+
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 # Django Cache
 CACHES = {

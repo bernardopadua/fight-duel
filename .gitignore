@@ -1,4 +1,6 @@
 .env
+.env.prod
+.env.docker
 
 backend/.venv
 backend/.data

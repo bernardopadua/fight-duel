@@ -13,12 +13,12 @@ from django.core.asgi import get_asgi_application
 from channels.security.websocket import AllowedHostsOriginValidator
 from channels.routing import ProtocolTypeRouter, URLRouter
 
-from mmo.asgi_middleware import JWTASGIAuthMiddleware
-from mmo.routing import websocket_urlpatterns
-
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 
 django_asgi_application = get_asgi_application()
+
+from mmo.asgi_middleware import JWTASGIAuthMiddleware
+from mmo.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_application,

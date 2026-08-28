@@ -1,0 +1,8 @@
+.data
+.redis
+.venv
+__pycache__
+*.pyc
+.git
+.vscode
+celerybeat-schedule

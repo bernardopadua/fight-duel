@@ -27,6 +27,46 @@ services:
     volumes:
       - ./backend/.redis:/data
 
+  fduel:
+    build: ./backend
+    container_name: fduel_backend
+    restart: no
+    networks:
+      - fduel
+    env_file:
+      - .env.docker
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  celery_worker:
+    build: ./backend
+    container_name: fduel_celery_worker
+    restart: no
+    networks:
+      - fduel
+    env_file:
+      - .env.docker
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A core.celery worker --loglevel=info
+
+  celery_beat:
+    build: ./backend
+    container_name: fduel_celery_beat
+    restart: no
+    networks:
+      - fduel
+    env_file:
+      - .env.docker
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A core.celery beat --loglevel=info
+
 networks:
   fduel:
     driver: bridge
