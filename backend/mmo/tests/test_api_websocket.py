@@ -6,7 +6,7 @@ from django.core.cache import cache
 
 from unittest.mock import patch
 
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
 from channels.testing import WebsocketCommunicator
@@ -25,10 +25,10 @@ class MMOPlayerTests(APITestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
         self.client.force_authenticate(user=self.user)
+        self.anonymous_client = APIClient()
 
     def test_create_new_player_not_logged_in(self):
-        self.client.logout()
-        response = self.client.post(
+        response = self.anonymous_client.post(
             '/api/mmo/create/player/', 
             {'playerName': 'NewPlayer'},
             format='json'
@@ -36,8 +36,7 @@ class MMOPlayerTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_player_not_logged_in(self):
-        self.client.logout()
-        response = self.client.get('/api/mmo/player/')
+        response = self.anonymous_client.get('/api/mmo/player/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_new_player(self):
