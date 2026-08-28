@@ -1,14 +1,16 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: fkingduel_postgres
+    container_name: fduel_postgres
     restart: unless-stopped
     networks: 
-      - fkingduel
+      - fduel
     environment:
-      POSTGRES_DB: fkingdueldb
-      POSTGRES_USER: fkingdueluser
-      POSTGRES_PASSWORD: fkingduelpassword
+      POSTGRES_DB: ${FDUEL_POSTGRES_DB}
+      POSTGRES_USER: ${FDUEL_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${FDUEL_POSTGRES_PASSWORD}
+    env_file:
+      .env
     ports:
       - "5432:5432"
     volumes:
@@ -16,15 +18,55 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: fkingduel_redis
+    container_name: fduel_redis
     restart: unless-stopped
     networks:
-      - fkingduel
+      - fduel
     ports:
       - "6379:6379"
     volumes:
       - ./backend/.redis:/data
 
+  fduel:
+    build: ./backend
+    container_name: fduel_backend
+    restart: no
+    networks:
+      - fduel
+    env_file:
+      - .env.docker
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  celery_worker:
+    build: ./backend
+    container_name: fduel_celery_worker
+    restart: no
+    networks:
+      - fduel
+    env_file:
+      - .env.docker
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A core.celery worker --loglevel=info
+
+  celery_beat:
+    build: ./backend
+    container_name: fduel_celery_beat
+    restart: no
+    networks:
+      - fduel
+    env_file:
+      - .env.docker
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A core.celery beat --loglevel=info
+
 networks:
-  fkingduel:
+  fduel:
     driver: bridge

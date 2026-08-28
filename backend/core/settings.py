@@ -10,27 +10,33 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 from pathlib import Path
+from dotenv import load_dotenv
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv(os.path.join(BASE_DIR.parent, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ggvg$!87-%av46ebigw&^x4_3^$^sg)2sq92vp$1pk8vp!3m4_'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # TODO: change this for production. When we get there. hehe
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ['DJANGO_ALLOWED_HOSTS'].split(",")
+]
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    origin.strip()
+    for origin in os.environ['CORS_ALLOWED_ORIGINS'].split(",")
 ]
 
 # Application definition
@@ -40,11 +46,11 @@ INSTALLED_APPS = [
 
     'corsheaders',
 
-    'django.contrib.admin',
+    #'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
+    #'django.contrib.sessions',
+    #'django.contrib.messages',
     'django.contrib.staticfiles',
 
     'rest_framework',
@@ -57,11 +63,11 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    #'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
+    #'django.middleware.csrf.CsrfViewMiddleware',
+    #'django.contrib.auth.middleware.AuthenticationMiddleware',
+    #'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 'fkdauth.middleware.JWTMiddleware', #using default auth from rest
 ]
@@ -92,11 +98,11 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'fkingdueldb'),
-        'USER': os.getenv('DB_USER', 'fkingdueluser'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'fkingduelpassword'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'NAME': os.getenv('FDUEL_POSTGRES_DB'),
+        'USER': os.getenv('FDUEL_POSTGRES_USER'),
+        'PASSWORD': os.getenv('FDUEL_POSTGRES_PASSWORD'),
+        'HOST': os.getenv('FDUEL_POSTGRES_HOST'),
+        'PORT': os.getenv('FDUEL_POSTGRES_PORT'),
     }
 }
 
@@ -170,13 +176,13 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [{'address': 'redis://127.0.0.1:6379', 'socket_timeout': 3600}],
+            'hosts': [{'address': os.getenv('FDUEL_REDIS_HOST'), 'socket_timeout': 3600}],
         }
     }
 }
 
 # Celery
-CELERY_REDIS_HOST_DB = 'redis://localhost:6379/{db}'
+CELERY_REDIS_HOST_DB = f'{os.getenv("FDUEL_REDIS_HOST")}/{{db}}'
 CELERY_BROKER_URL = CELERY_REDIS_HOST_DB.format(db='0')
 CELERY_RESULT_BACKEND = CELERY_REDIS_HOST_DB.format(db='0')
 CELERY_ACCEPT_CONTENT = ['json']
@@ -185,18 +191,20 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_BEAT_SCHEDULE = {
     'mmo-game-tick': {
         'task': 'mmo.tasks.tick',
-        'schedule': 30.0, #seconds
+        'schedule': float(os.environ['CELERY_BEAT_MMO_TICK']), #seconds
     },
     'mmo-game-clean-orphan-items': {
         'task': 'mmo.tasks.clean_orphan_items',
-        'schedule': 30.0, #seconds. TODO: change for production. crontab
+        'schedule': float(os.environ['CELERY_BEAT_MMO_ORPHAN_ITEMS']), #seconds
     },
 }
+
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 # Django Cache
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://localhost:6379',
+        'LOCATION': os.getenv('FDUEL_REDIS_HOST'),
     }
 }
