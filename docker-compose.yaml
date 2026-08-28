@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: fduel_postgres
     restart: unless-stopped
     networks: 
@@ -14,10 +14,10 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./backend/.data:/var/lib/postgresql/data
+      - ./backend/.data:/var/lib/postgresql
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: fduel_redis
     restart: unless-stopped
     networks:
@@ -35,6 +35,8 @@ services:
       - fduel
     env_file:
       - .env.docker
+    environment:
+      - FDUEL_MIGRATE=true
     ports:
       - "8000:8000"
     depends_on:

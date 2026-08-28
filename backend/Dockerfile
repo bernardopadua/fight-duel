@@ -13,7 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /fduel-backend
 
+COPY .infra/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 RUN useradd -m -u 1000 fdueluser && chown -R fdueluser:fdueluser /fduel-backend
 USER fdueluser
 
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]

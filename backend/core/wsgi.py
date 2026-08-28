@@ -1,5 +1,5 @@
 """
-WSGI config for fkingduel project.
+WSGI config for fightduel project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 
