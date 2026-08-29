@@ -147,7 +147,10 @@ docker compose exec fduel python manage.py test
 - [x] Drop system and creature respawns
 - [x] Player-to-player marketplace with atomic purchases
 - [x] Automated test suite & CI/CD pipeline
-- [ ] Destroyed items (consumables, equipment, etc)
+- [ ] Extend recover_status for players in fight too.
+  - Write on DB the max life of player at each level_up, so we can filter who needs to recover.
 - [ ] Direct Player vs. Player (PvP) duels
+- [ ] Add support for fights with multiple players against a BOSS creature.
+- [ ] Destroyed items (consumables, equipment, etc)
 - [ ] Expanded Phaser combat arena and visual animations
 - [ ] Balance the game (level up, drop chance, etc) (constant thing)
