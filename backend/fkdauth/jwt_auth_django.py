@@ -18,6 +18,8 @@ class JWTAuthenticationBackend(BaseAuthentication):
             return None
         
         try:
+            token = ''
+
             auth_type = auth_header[0]
             if auth_type != b'Bearer':
                 return None
