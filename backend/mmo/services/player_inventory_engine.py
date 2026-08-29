@@ -8,6 +8,9 @@ from mmo.models import Player, Item, PlayerInventory
 from mmo.services.player_engine import PlayerEngine
 
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PlayerInventoryEngine:
     @staticmethod
@@ -115,8 +118,7 @@ class PlayerInventoryEngine:
                 ) for i in items
             ])
         except Exception as e:
-            #TODO: Logging
-            print(e)
+            logger.error(f"Error loding items {items_ids} for player {player_id}: {e}", exc_info=True)
             return False
 
         return True
