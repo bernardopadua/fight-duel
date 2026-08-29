@@ -141,6 +141,14 @@ class MMOTasksTests(TestCase):
         f = Fight.objects.filter(id=fs.fight_id).first() #pyright: ignore
         self.assertIsNotNone(f)
 
+        #not dead and full life
+        recover_player_status()
+
+        mock_recover_players_status.assert_not_called()
+
+        self.player.player_life = 30
+        self.player.save(update_fields=['player_life'])
+
         recover_player_status()
 
         mock_recover_players_status.assert_called_once()
