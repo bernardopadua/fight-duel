@@ -30,12 +30,13 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     
     @override
     async def connect(self) -> None:
+        self.fight_id = None
+
         if not "user" in self.scope or self.scope["user"] is None:
             await self.close()
             return
         
         self.user = self.scope["user"]
-        
         if self.user.is_anonymous:
             await self.close()
             return
@@ -46,7 +47,6 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             return
 
         self.player_id = player_id
-        self.fight_id = None
 
         await self.accept()
 
