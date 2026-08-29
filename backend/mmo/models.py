@@ -7,7 +7,7 @@ class World(models.Model):
     world_name = models.CharField(max_length=100)
     world_total_creatures = models.IntegerField(default=100)
     world_min_level = models.IntegerField(default=1)
-    world_max_level = models.IntegerField(default=0)
+    world_max_level = models.IntegerField(default=100)
 
 class WorldCreature(models.Model):
     creature_name = models.CharField(max_length=100)
@@ -25,6 +25,11 @@ class Item(models.Model):
     class ItemConsumableType(models.TextChoices):
         LIFE = "life"
         STAMINA = "stamina"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['item_created_date']),
+        ]
 
     item_name = models.CharField(max_length=100)
     item_power = models.IntegerField(default=0)
@@ -69,4 +74,5 @@ class PlayerInventory(models.Model):
 
 class Fight(models.Model):
     creature = models.ForeignKey('WorldCreature', on_delete=models.CASCADE)
-    player = models.ForeignKey('Player', on_delete=models.CASCADE)
+    player = models.OneToOneField('Player', on_delete=models.CASCADE)
+    fight_created_date = models.DateTimeField(auto_now_add=True)

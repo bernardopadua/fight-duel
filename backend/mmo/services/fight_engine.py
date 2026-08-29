@@ -4,14 +4,13 @@ from channels.layers import get_channel_layer
 
 from django.db import transaction
 from django.core.cache import cache
-from django.forms import model_to_dict
 
 from mmo.models import Player, Fight, WorldCreature
 from mmo.services.player_engine import PlayerEngine
 from .constants import (
     LEVEL_MAX, PLAYER_IS_ATTACKING, TEMPO_MIN_ATTACK, TEMPO_MAX_ATTACK,
     MONSTER_MAX_ATTACK, MONSTER_MIN_ATTACK, PLAYER_POWER_ATTACK_VARIATION,
-    MONSTER_POWER_ATTACK_VARIATION
+    MONSTER_POWER_ATTACK_VARIATION, UNLOCK_FIGHT_LOCK
 )
 
 from mmo.services.drop_engine import DropEngine
@@ -97,12 +96,17 @@ class FightEngine:
         )
 
     @staticmethod
-    def set_player_attacking(player_id: int, player_level: int) -> float:
+    def set_player_attacking(player: Player) -> float:
+        if player.player_life <= 0 or player.player_status != Player.PlayerStatus.FIGHTING:
+            return 0.0
+
         attack_time = max(TEMPO_MIN_ATTACK, 
-            TEMPO_MAX_ATTACK - ((TEMPO_MAX_ATTACK - TEMPO_MIN_ATTACK) * (player_level/LEVEL_MAX))
+            TEMPO_MAX_ATTACK - ((TEMPO_MAX_ATTACK - TEMPO_MIN_ATTACK) * (player.player_level/LEVEL_MAX))
         )
-        cache.set(PLAYER_IS_ATTACKING.format(player_id=player_id), True, timeout=attack_time)
-        return attack_time
+        if cache.add(PLAYER_IS_ATTACKING.format(player_id=player.id), True, timeout=attack_time):
+            return attack_time
+        
+        return 0.0
 
     @staticmethod
     def monster_attack_interval(creature_level: int) -> float:
@@ -110,16 +114,6 @@ class FightEngine:
             MONSTER_MAX_ATTACK - ((MONSTER_MAX_ATTACK - MONSTER_MIN_ATTACK) * (creature_level/LEVEL_MAX))
         )
         return attack_time
-
-    @staticmethod
-    def can_attack(player: Player) -> bool:
-        if player.player_life <= 0 or player.player_status != Player.PlayerStatus.FIGHTING:
-            return False
-
-        if cache.get(PLAYER_IS_ATTACKING.format(player_id=player.id)) is None:
-            return True
-
-        return False
 
     @staticmethod
     def lock_fight(creature_id: int, player_id: int) -> Fight | None:
@@ -211,48 +205,52 @@ class FightEngine:
 
     @classmethod
     def attack_monster(cls, fight_id: int) -> FightStatus | None:
-        fight = Fight.objects.select_related(
-            'creature',
-            'player'
-        ).filter(
-            id=fight_id
-        ).first()
+        with transaction.atomic():
+            fight = Fight.objects.select_for_update(
+                of=('self', 'creature')
+            ).select_related(
+                'creature',
+                'player',
+                'player__player_equipped_weapon__item',
+                'player__player_equipped_armour__item'
+            ).filter(
+                id=fight_id
+            ).first()
 
-        if fight is None:
-            return
+            if fight is None:
+                return
 
-        c: WorldCreature = fight.creature
-        p: Player = fight.player
-        player_attack_time = 0.0
+            c: WorldCreature = fight.creature
+            p: Player = fight.player
 
-        if not cls.can_attack(p):
-            return
-        else:
-            player_attack_time = cls.set_player_attacking(p.id, p.player_level)
-        
-        fs = FightStatus()
-        fs.is_player_attacking = player_attack_time
+            if not (player_attack_time := cls.set_player_attacking(p)):
+                return
 
-        total_power = PlayerEngine.get_player_total_power(p)
-        power_attack = randint(
-            int(total_power * PLAYER_POWER_ATTACK_VARIATION), 
-            total_power
-        )
-        c.creature_life = (c.creature_life - power_attack) if (c.creature_life - power_attack) > 0 else 0
-        fs.creature_life = c.creature_life
-        fs.player_life = p.player_life
+            fs = FightStatus()
+            fs.is_player_attacking = player_attack_time
 
-        unlock_fight = False
+            total_power = PlayerEngine.get_player_total_power(p)
+            power_attack = randint(
+                int(total_power * PLAYER_POWER_ATTACK_VARIATION), 
+                total_power
+            )
+            c.creature_life = (c.creature_life - power_attack) if (c.creature_life - power_attack) > 0 else 0
+            fs.creature_life = c.creature_life
+            fs.player_life = p.player_life
 
-        if c.creature_life <= 0:
-            fs.creature_chance_drop = c.creature_chance_drop
-            fs.creature_level = c.creature_level
-            unlock_fight = True
-            fs.is_monster_alive = False
-        else:
-            c.save(update_fields=["creature_life"])
+            unlock_fight = False
 
-        if unlock_fight:
+            if c.creature_life <= 0:
+                fs.creature_chance_drop = c.creature_chance_drop
+                fs.creature_level = c.creature_level
+                unlock_fight = True
+                fs.is_monster_alive = False
+            else:
+                c.save(update_fields=["creature_life"])
+
+        if unlock_fight and \
+            cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
+        :
             fs.is_fight_over = True
             cls.unlock_finish_fight(fight_id, fs)
 
@@ -260,44 +258,49 @@ class FightEngine:
 
     @classmethod
     def attack_player(cls, fight_id: int, is_creature_attacking: float = 0.0) -> FightStatus | None:
-        fight = Fight.objects.select_related(
-            'creature',
-            'player__player_equipped_armour__item',
-        ).filter(
-            id=fight_id
-        ).first()
-
-        if fight is None:
-            return
-        
-        c: WorldCreature = fight.creature
-        p: Player = fight.player
-        fs = FightStatus()
-        fs.is_creature_attacking = cls.monster_attack_interval(c.creature_level)
-
-        power_attack = randint(
-            int((c.creature_level + 10) * MONSTER_POWER_ATTACK_VARIATION),
-            c.creature_level + 10
-        )
-        defense_power = p.player_equipped_armour.item.item_power if p.player_equipped_armour else 0
-        total_damage = max(0, (power_attack - defense_power))
-        p.player_life = (p.player_life - total_damage) if (p.player_life - total_damage) > 0 else 0
-        fs.creature_life = c.creature_life
-        fs.creature_level = c.creature_level
-        fs.player_life = p.player_life
-
-        unlock_fight = False
-
         with transaction.atomic():
-            if p.player_life <= 0:
-                p.player_status = Player.PlayerStatus.DEAD
-                unlock_fight = True
-                fs.is_player_alive = False
-                PlayerEngine.player_dead_penalty(p)
+            fight = Fight.objects.select_for_update(
+                of=('self', 'player')
+            ).select_related(
+                'creature',
+                'player__player_equipped_armour__item',
+            ).filter(
+                id=fight_id
+            ).first()
 
-            p.save(update_fields=["player_status", "player_life"])
+            if fight is None:
+                return
+            
+            c: WorldCreature = fight.creature
+            p: Player = fight.player
+            fs = FightStatus()
+            fs.is_creature_attacking = cls.monster_attack_interval(c.creature_level)
 
-        if unlock_fight:
+            power_attack = randint(
+                int((c.creature_level + 10) * MONSTER_POWER_ATTACK_VARIATION),
+                c.creature_level + 10
+            )
+            defense_power = p.player_equipped_armour.item.item_power if p.player_equipped_armour else 0
+            total_damage = max(0, (power_attack - defense_power))
+            p.player_life = (p.player_life - total_damage) if (p.player_life - total_damage) > 0 else 0
+            fs.creature_life = c.creature_life
+            fs.creature_level = c.creature_level
+            fs.player_life = p.player_life
+
+            unlock_fight = False
+
+            with transaction.atomic():
+                if p.player_life <= 0:
+                    p.player_status = Player.PlayerStatus.DEAD
+                    unlock_fight = True
+                    fs.is_player_alive = False
+                    PlayerEngine.player_dead_penalty(p)
+
+                p.save(update_fields=["player_status", "player_life"])
+
+        if unlock_fight and \
+            cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
+        :
             fs.is_fight_over = True
             cls.unlock_finish_fight(fight_id, fs)
 
