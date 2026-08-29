@@ -26,6 +26,11 @@ class Item(models.Model):
         LIFE = "life"
         STAMINA = "stamina"
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['item_created_date']),
+        ]
+
     item_name = models.CharField(max_length=100)
     item_power = models.IntegerField(default=0)
     item_weight = models.IntegerField(default=1)
@@ -69,4 +74,5 @@ class PlayerInventory(models.Model):
 
 class Fight(models.Model):
     creature = models.ForeignKey('WorldCreature', on_delete=models.CASCADE)
-    player = models.ForeignKey('Player', on_delete=models.CASCADE)
+    player = models.OneToOneField('Player', on_delete=models.CASCADE)
+    fight_created_date = models.DateTimeField(auto_now_add=True)

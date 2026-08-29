@@ -4,7 +4,7 @@ from mmo.services.constants import (
     PLAYER_BASE_LIFE, PLAYER_LIFE_LINEAR_POWER,
     PLAYER_TOTAL_STAMINA, PLAYER_LIFE_TOTAL_POWER_REGEN,
     LEVELUP_VARIATION_POWER, LEVELUP_MULTIPLIER_EXP,
-    LEVELUP_PLUS_PLAYERPOWER, MAX_PLAYER_LEVEL
+    LEVELUP_PLUS_PLAYERPOWER, LEVEL_MAX
 )
 
 class PlayerEngine:
@@ -80,7 +80,7 @@ class PlayerEngine:
 
         exp_earned = int(creature_level * LEVELUP_MULTIPLIER_EXP)
         if player.player_exp + exp_earned >= cls.required_exp(player) \
-            and (player.player_level + 1) <= MAX_PLAYER_LEVEL:
+            and (player.player_level + 1) <= LEVEL_MAX:
             player.player_level += 1
             player.player_exp = 0
             player.player_power += LEVELUP_PLUS_PLAYERPOWER
@@ -91,7 +91,7 @@ class PlayerEngine:
                 "player_life", "player_stamina", 
                 "player_power"
             ])
-        elif player.player_level < MAX_PLAYER_LEVEL:
+        elif player.player_level < LEVEL_MAX:
             player.player_exp += exp_earned
             player.save(update_fields=["player_exp"])
 

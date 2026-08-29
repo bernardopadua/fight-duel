@@ -10,7 +10,7 @@ from mmo.services.player_engine import PlayerEngine
 from .constants import (
     LEVEL_MAX, PLAYER_IS_ATTACKING, TEMPO_MIN_ATTACK, TEMPO_MAX_ATTACK,
     MONSTER_MAX_ATTACK, MONSTER_MIN_ATTACK, PLAYER_POWER_ATTACK_VARIATION,
-    MONSTER_POWER_ATTACK_VARIATION
+    MONSTER_POWER_ATTACK_VARIATION, UNLOCK_FIGHT_LOCK
 )
 
 from mmo.services.drop_engine import DropEngine
@@ -248,11 +248,13 @@ class FightEngine:
             else:
                 c.save(update_fields=["creature_life"])
 
-            if unlock_fight:
-                fs.is_fight_over = True
-                cls.unlock_finish_fight(fight_id, fs)
+        if unlock_fight and \
+            cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
+        :
+            fs.is_fight_over = True
+            cls.unlock_finish_fight(fight_id, fs)
 
-            return fs
+        return fs
 
     @classmethod
     def attack_player(cls, fight_id: int, is_creature_attacking: float = 0.0) -> FightStatus | None:
@@ -296,11 +298,13 @@ class FightEngine:
 
                 p.save(update_fields=["player_status", "player_life"])
 
-            if unlock_fight:
-                fs.is_fight_over = True
-                cls.unlock_finish_fight(fight_id, fs)
+        if unlock_fight and \
+            cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
+        :
+            fs.is_fight_over = True
+            cls.unlock_finish_fight(fight_id, fs)
 
-            return fs
+        return fs
 
     @classmethod
     def player_flee(cls, fight_id: int) -> None:
