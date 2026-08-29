@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.core.cache import cache
 
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -75,9 +76,14 @@ class UserRegistrationTest(APITestCase):
         self.assertIn("error", response.data)
 
 class UserLoginTest(APITestCase):
-    def test_user_login(self):
-        User.objects.create_user(username='test', email='test@test.com', password='123456')
-        
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
+
+    def tearDown(self) -> None:
+        cache.clear()
+        super().tearDown()
+
+    def test_user_login(self):        
         response = self.client.post(
             '/api/auth/login/', 
             {'username': 'test', 'password': '123456'},
@@ -88,8 +94,6 @@ class UserLoginTest(APITestCase):
         self.assertIn("token", response.data)
 
     def test_user_login_wrong_credentials(self):
-        User.objects.create_user(username='test', email='test@test.com', password='123456')
-
         response = self.client.post(
             '/api/auth/login/', 
             {'username': 'test', 'password': 'wrongpassword'},
@@ -115,3 +119,50 @@ class UserLoginTest(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
+
+    def test_user_logout_with_valid_cookie(self):
+        response = self.client.post(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+
+        token = response.data['token']
+
+        self.client.cookies['Authorization-JWT'] = token
+        response = self.client.post(
+            '/api/auth/logout/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('success', response.data)
+        self.assertEqual(response.cookies.get('Authorization-JWT').value, '')
+    
+    def test_user_logout_with_valid_header(self):
+        response = self.client.post(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+
+        token = response.data['token']
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.post(
+            '/api/auth/logout/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('success', response.data)
+        self.assertEqual(response.cookies.get('Authorization-JWT').value, '')
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.get('/api/auth/health-check/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn('detail', response.data)

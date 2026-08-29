@@ -1,0 +1,1 @@
+USER_JWT_BLOCKED_BEFORE = "user:jwt:blocked_before:{user_id}"
