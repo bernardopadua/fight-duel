@@ -59,6 +59,8 @@ class PlayerEngine:
 
             Player.objects.filter(
                 id=player.id
+            ).exclude(
+                player_status=Player.PlayerStatus.DEAD
             ).update(
                 player_stamina=Least(F('player_stamina') + (F('player_max_stamina') * (total_power / 100)), F('player_max_stamina')),
                 player_life=Least(F('player_life') + percent_life_restore, F('player_max_life'))
