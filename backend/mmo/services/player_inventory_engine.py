@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models import Sum, F, Value, Window, OuterRef, Subquery
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Least
 from django.forms import model_to_dict
 from djangorestframework_camel_case.util import camelize
 
@@ -31,18 +31,18 @@ class PlayerInventoryEngine:
             if item.item_type == Item.ItemType.CONSUMABLE:
                 if item.item_consumable_type == Item.ItemConsumableType.LIFE:
                     total_life = PlayerEngine.get_player_calculated_life(player)
-                    if (player.player_life + item.item_power) > total_life:
-                        player.player_life = total_life
-                    else:
-                        player.player_life += item.item_power
-                    player.save(update_fields=["player_life"])
+                    Player.objects.filter(
+                        id=player_id
+                    ).update(
+                        player_life=Least(F('player_life')+item.item_power, total_life)
+                    )
                 elif item.item_consumable_type == Item.ItemConsumableType.STAMINA:
                     total_stamina = PlayerEngine.get_player_calculated_stamina(player)
-                    if (player.player_stamina + item.item_power) > total_stamina:
-                        player.player_stamina = total_stamina
-                    else:
-                        player.player_stamina += item.item_power
-                    player.save(update_fields=["player_stamina"])
+                    Player.objects.filter(
+                        id=player_id
+                    ).update(
+                        player_stamina=Least(F('player_stamina')+item.item_power, total_stamina)
+                    )
                 
                 #This is cascade.
                 item.delete()
