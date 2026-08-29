@@ -126,8 +126,6 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
                 "action": ToClientActions.INVENTORY_UPDATE,
                 "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
             }))
-        elif data.get("action") == "testing":
-            await sync_to_async(PlayerInventoryEngine.testing)()
 
     async def fight_create_group(self, fight_id: int) -> None:
         await self.channel_layer.group_add(

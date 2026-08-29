@@ -130,33 +130,3 @@ class PlayerInventoryEngine:
         items_inventory_dict = [i.item.to_dict() for i in items_inventory]
 
         return items_inventory_dict
-
-    #TODO: Remove this.
-    @staticmethod
-    def testing() -> None:
-        #This complication is intentional
-        sub_player_inventory = (
-            PlayerInventory.objects.filter(
-                player_id=OuterRef('pk')
-            ).exclude(
-                item_id=OuterRef('player_equipped_weapon_id')
-            ).exclude(
-                item_id=OuterRef('player_equipped_armour_id')
-            ).values(
-                "player_id"
-            ).annotate(
-                total_items_weight=Sum("item__item_weight")
-            ).values("total_items_weight")[:1]
-        )
-
-        player = Player.objects.filter(
-            id=7
-        ).annotate(
-            total_items_equipped=(
-                Coalesce(F("player_equipped_weapon__item__item_weight"), Value(0)) + 
-                Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
-            ),
-            total_inventory_weight=Coalesce(Subquery(sub_player_inventory), Value(0))
-        ).first()
-
-        print(player)
