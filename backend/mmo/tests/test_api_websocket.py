@@ -656,7 +656,7 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertEqual(len(response['data']), 0)
 
         await self.player.arefresh_from_db()
-        self.assertEqual(self.player.player_life, await sync_to_async(PlayerEngine.get_player_calculated_life)(self.player))
+        self.assertEqual(self.player.player_life, self.player.player_max_life)
 
         await communicator.disconnect()
 

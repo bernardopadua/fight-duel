@@ -26,5 +26,16 @@ class CreatePlayerSerializer(ModelSerializer):
 class GetPlayerSerializer(ModelSerializer):
     class Meta:
         model = Player
-        fields = ['user', 'player_name', 'player_level', 'player_exp', 'player_power', 'player_stamina', 'player_equipped_weapon', 'player_equipped_armour', 'player_status', 'player_max_weight', 'player_currency']
-        read_only_fields = ['user', 'player_name', 'player_level', 'player_exp', 'player_power', 'player_stamina', 'player_equipped_weapon', 'player_equipped_armour', 'player_status', 'player_max_weight', 'player_currency']
+        fields = [
+            'user', 'player_name', 'player_level', 'player_exp', 
+            'player_power', 'player_stamina', 'player_max_stamina', 'player_equipped_weapon', 
+            'player_equipped_armour', 'player_status', 'player_max_weight', 
+            'player_currency', 'player_life','player_max_life'
+        ]
+        read_only_fields = [
+            'user', 'player_name', 'player_level', 'player_exp', 
+            'player_power', 'player_stamina', 'player_max_stamina', 
+            'player_equipped_weapon', 'player_equipped_armour', 
+            'player_status', 'player_max_weight', 
+            'player_currency', 'player_life','player_max_life'
+        ]

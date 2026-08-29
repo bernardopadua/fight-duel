@@ -33,28 +33,36 @@ class PlayerInventoryEngine:
         with transaction.atomic():
             if item.item_type == Item.ItemType.CONSUMABLE:
                 if item.item_consumable_type == Item.ItemConsumableType.LIFE:
-                    total_life = PlayerEngine.get_player_calculated_life(player)
                     Player.objects.filter(
                         id=player_id
                     ).update(
-                        player_life=Least(F('player_life')+item.item_power, total_life)
+                        player_life=Least(F('player_life')+item.item_power, F('player_max_life'))
                     )
                 elif item.item_consumable_type == Item.ItemConsumableType.STAMINA:
-                    total_stamina = PlayerEngine.get_player_calculated_stamina(player)
                     Player.objects.filter(
                         id=player_id
                     ).update(
-                        player_stamina=Least(F('player_stamina')+item.item_power, total_stamina)
+                        player_stamina=Least(F('player_stamina')+item.item_power, F('player_max_stamina'))
                     )
                 
                 #This is cascade.
                 item.delete()
             elif item.item_type == Item.ItemType.ARMOUR:
                 player.player_equipped_armour = iv
-                player.save(update_fields=["player_equipped_armour"])
+                Player.objects.filter(
+                    id=player_id
+                ).update(
+                    player_equipped_armour=iv,
+                    player_max_life=PlayerEngine.get_player_calculated_life(player)
+                )
             elif item.item_type == Item.ItemType.WEAPON:
                 player.player_equipped_weapon = iv
-                player.save(update_fields=["player_equipped_weapon"])
+                Player.objects.filter(
+                    id=player_id
+                ).update(
+                    player_equipped_weapon=iv,
+                    player_max_life=PlayerEngine.get_player_calculated_life(player)
+                )
 
         return True
 
