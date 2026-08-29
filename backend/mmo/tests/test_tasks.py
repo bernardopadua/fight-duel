@@ -141,15 +141,36 @@ class MMOTasksTests(TestCase):
         f = Fight.objects.filter(id=fs.fight_id).first() #pyright: ignore
         self.assertIsNotNone(f)
 
+        #not dead and full life
         recover_player_status()
 
         mock_recover_players_status.assert_not_called()
+
+        self.player.player_life = 30
+        self.player.save(update_fields=['player_life'])
+
+        recover_player_status()
+
+        mock_recover_players_status.assert_called_once()
+        mock_recover_players_status.reset_mock()
 
         FightEngine.player_flee(fs.fight_id) #pyright: ignore
         
         recover_player_status()
         
         mock_recover_players_status.assert_called_once()
+
+    @patch('mmo.tasks.PlayerEngine.recover_players_status')
+    def test_recover_player_status_dead_in_fight(self, mock_recover_players_status):
+        self.player.player_status = Player.PlayerStatus.DEAD
+        self.player.save(update_fields=['player_status'])
+        fs = FightEngine.should_fight(self.player.id)
+        self.assertIsNone(fs)
+
+        recover_player_status()
+
+        mock_recover_players_status.assert_not_called()
+
 
     def test_recover_player_status_low_life(self):
         self.player.player_life = 50

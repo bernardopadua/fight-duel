@@ -2,6 +2,8 @@ from asgiref.sync import async_to_sync
 
 from celery import shared_task
 from channels.layers import get_channel_layer
+
+from django.db.models import F
 from django.utils import timezone
 
 from mmo.services.fight_engine import FightEngine
@@ -71,7 +73,10 @@ def recover_player_status() -> None:
         "player_equipped_weapon__item",
         "player_equipped_armour__item"
     ).exclude(
-        player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
+        player_status__in=[Player.PlayerStatus.DEAD],
+    ).exclude(
+        player_life=F('player_max_life'),
+        player_stamina=F('player_max_stamina')
     ).all()
 
     if len(players) > 0:

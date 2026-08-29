@@ -1,4 +1,6 @@
-from django.db.models import QuerySet
+from django.db.models import QuerySet, F
+from django.db.models.functions import Least
+
 from mmo.models import Player
 from mmo.services.constants import (
     PLAYER_BASE_LIFE, PLAYER_LIFE_LINEAR_POWER,
@@ -53,18 +55,16 @@ class PlayerEngine:
 
         for player in players:
             total_power = PlayerEngine.get_player_total_power(player)
-            player_total_life = PlayerEngine.get_player_calculated_life(player)
+            percent_life_restore = int((total_power * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5)
 
-            if player.player_stamina < PLAYER_TOTAL_STAMINA:
-                player.player_stamina = min(
-                    PLAYER_TOTAL_STAMINA,
-                    int(player.player_stamina + (PlayerEngine.get_player_calculated_stamina(player) * (total_power / 100)))
-                )
-            if player.player_life < player_total_life:
-                percent_life_restore = int((total_power * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5)
-                player.player_life = min(player_total_life, player.player_life + percent_life_restore)
-
-            player.save(update_fields=["player_life", "player_stamina"])
+            Player.objects.filter(
+                id=player.id
+            ).exclude(
+                player_status=Player.PlayerStatus.DEAD
+            ).update(
+                player_stamina=Least(F('player_stamina') + (F('player_max_stamina') * (total_power / 100)), F('player_max_stamina')),
+                player_life=Least(F('player_life') + percent_life_restore, F('player_max_life'))
+            )
 
     @staticmethod
     def required_exp(player: Player) -> int:
@@ -84,16 +84,20 @@ class PlayerEngine:
             player.player_level += 1
             player.player_exp = 0
             player.player_power += LEVELUP_PLUS_PLAYERPOWER
-            player.player_life = cls.get_player_calculated_life(player)
-            player.player_stamina = cls.get_player_calculated_stamina(player)
+            max_life = cls.get_player_calculated_life(player)
+            player.player_life = max_life
+            player.player_max_life = max_life
+            max_stamina = cls.get_player_calculated_stamina(player)
+            player.player_stamina = max_stamina
+            player.player_max_stamina = max_stamina
             player.save(update_fields=[
-                "player_level", "player_exp", 
-                "player_life", "player_stamina", 
-                "player_power"
+                'player_level', 'player_exp', 
+                'player_life', 'player_stamina', 
+                'player_power', 'player_max_life', 'player_max_stamina'
             ])
         elif player.player_level < LEVEL_MAX:
             player.player_exp += exp_earned
-            player.save(update_fields=["player_exp"])
+            player.save(update_fields=['player_exp'])
 
     @staticmethod
     def player_dead_penalty(player: Player) -> None:

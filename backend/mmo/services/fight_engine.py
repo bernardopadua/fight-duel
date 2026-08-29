@@ -62,7 +62,11 @@ class FightEngine:
 
     @classmethod
     def should_fight(cls, player_id: int) -> FightStart | None:
-        p = Player.objects.filter(id=player_id).first()
+        p = Player.objects.filter(
+            id=player_id
+        ).exclude(
+            player_status=Player.PlayerStatus.DEAD
+        ).first()
         if not p:
             return None
 
