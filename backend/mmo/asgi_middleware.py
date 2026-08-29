@@ -1,9 +1,11 @@
 from django.contrib.auth.models import AnonymousUser, User
 from django.conf import settings
+from django.core.cache import cache
 
 from channels.db import database_sync_to_async
 
 from fkdauth.jwt_auth_utils import decode_token, JWTError, JWTExpiredError
+from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
 
 from http.cookies import SimpleCookie
 import logging
@@ -26,13 +28,18 @@ class JWTASGIAuthMiddleware:
 
     @database_sync_to_async
     def get_user(self, token):
-        # decodifica JWT, busca User, retorna AnonymousUser() se inválido
         try:
             payload = decode_token(token, settings.SECRET_KEY)
+            user_id = payload.get('userId')
+            token_iat = payload.get('iat')
 
-            user = User.objects.filter(id=payload.get('userId', None)).first()
+            blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
+            if blocked_until and blocked_until > token_iat:
+                raise JWTError('Token revoked')
 
-            if not user:
+            user = User.objects.filter(id=user_id).first()
+
+            if not user or not user.is_active:
                 return AnonymousUser()
 
             return user

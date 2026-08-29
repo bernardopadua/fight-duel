@@ -1,10 +1,8 @@
 from django.conf import settings
 from django.core.cache import cache
 from django.contrib.auth import authenticate
-from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 
-from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -61,7 +59,7 @@ class LogoutView(APIView):
 
         cache.set(
             USER_JWT_BLOCKED_BEFORE.format(user_id=request.user.id), 
-            time.time(),
+            int(time.time()),
             timeout=max(expiration - time.time(), 1)
         )
         response.delete_cookie('Authorization-JWT')
