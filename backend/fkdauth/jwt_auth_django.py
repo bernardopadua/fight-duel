@@ -45,7 +45,7 @@ class JWTAuthenticationBackend(BaseAuthentication):
 
         except (JWTError, JWTExpiredError) as e:
             logger.warning('JWT Error: %s, for request from %s', str(e), request.META.get("REMOTE_ADDR", "Unknown"))
-            raise AuthenticationFailed(f"Invalid JWT token")
+            return None
         except Exception as e:
             logger.error('Invalid JWT token: %s, for request from %s', str(e), request.META.get("REMOTE_ADDR", "Unknown"))
             raise AuthenticationFailed(f"Invalid JWT token")
