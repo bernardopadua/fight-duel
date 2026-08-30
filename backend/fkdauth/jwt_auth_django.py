@@ -1,5 +1,3 @@
-from typing import override
-
 from django.conf import settings
 from django.http import HttpRequest
 from django.contrib.auth.models import User
@@ -7,35 +5,50 @@ from django.contrib.auth.models import User
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed
 
-from fkdauth.jwt_auth_utils import decode_token, JWTError, JWTExpiredError
+from django.core.cache import cache
+
+from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
+
+from fkdauth.jwt_auth_utils import (
+    decode_token, JWTError, JWTExpiredError,
+    get_token_from_request
+)
+
+from typing import override
+import logging
+
+logger = logging.getLogger(__name__)
 
 class JWTAuthenticationBackend(BaseAuthentication):
     @override
     def authenticate(self, request: HttpRequest) -> tuple[User, str] | None:
-        
-        auth_header = get_authorization_header(request).split()
-        if not auth_header or len(auth_header) < 2:
-            return None
-        
+        token = ''
+       
         try:
-            auth_type = auth_header[0]
-            if auth_type != b'Bearer':
+            if not (token := get_token_from_request(request)):
                 return None
 
-            token = auth_header[1].decode()
             payload = decode_token(token, settings.SECRET_KEY)
 
-            user = User.objects.filter(id=payload.get('userId', None)).first()
+            user_id = payload['userId']
+            token_iat = payload['iat']
 
-            if not user:
+            blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
+            if blocked_until and blocked_until > token_iat:
+                raise JWTError('Token revoked')
+
+            user = User.objects.filter(id=user_id).first()
+            if not user or not user.is_active:
                 return None
 
             return (user, token)
 
-        except (JWTError, JWTExpiredError):
+        except (JWTError, JWTExpiredError) as e:
+            logger.warning('JWT Error: %s, for request from %s', str(e), request.META.get("REMOTE_ADDR", "Unknown"))
             return None
         except Exception as e:
-            raise AuthenticationFailed(f"Invalid JWT token: {e}")
+            logger.error('Invalid JWT token: %s, for request from %s', str(e), request.META.get("REMOTE_ADDR", "Unknown"))
+            raise AuthenticationFailed(f"Invalid JWT token")
     
     @override
     def authenticate_header(self, request: HttpRequest) -> str:

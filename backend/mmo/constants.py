@@ -1,0 +1,1 @@
+USER_CHANNEL_WS_LOGGED = 'user:channel:ws:logged:{user_id}'

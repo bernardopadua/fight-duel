@@ -1,4 +1,8 @@
-import time, base64, json, hmac, hashlib
+from rest_framework.authentication import get_authorization_header
+from rest_framework.request import Request
+from django.http import HttpRequest
+
+import time, base64, json, hmac, hashlib, uuid
 from typing import Any
 
 class JWTError(Exception):
@@ -33,7 +37,8 @@ def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str
     payload = {
         "userId": user_id,
         "exp": int(time.time()) + time_expires,
-        "iat": int(time.time())
+        "iat": time.time(),
+        "jti": str(uuid.uuid4())
     }
 
     header = {
@@ -62,3 +67,25 @@ def decode_token(token: str, secret_key: str) -> dict[str, Any]:
         raise JWTExpiredError("JWT token expired")
 
     return payload
+
+def get_token_from_request(request: Request | HttpRequest | None) -> str | None:
+    if not request:
+        return None
+    
+    token: str | None = None
+
+    auth_header = get_authorization_header(request).split()
+    if auth_header and len(auth_header) >= 2 and auth_header[0] == b'Bearer':
+        token = auth_header[1].decode()
+    else:
+        token = request.COOKIES.get("Authorization-JWT", None)
+
+    return token
+
+def get_expiration_from_request(request: Request | HttpRequest) -> int:
+    token = get_token_from_request(request)
+    if not token:
+        return 0
+
+    header, payload, signature = token.split('.')
+    return decode_base64(payload).get("exp", 0)
