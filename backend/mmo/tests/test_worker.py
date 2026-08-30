@@ -41,6 +41,13 @@ class MMOCeleryWorkerTests(TransactionTestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
 
+        self.world = World.objects.create(
+            world_name='TestWorld',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
+
         self.player_power = 999
         self.player_life = 100
         self.player = Player.objects.create(
@@ -48,14 +55,10 @@ class MMOCeleryWorkerTests(TransactionTestCase):
             player_level=10,
             player_power=self.player_power,
             player_life=self.player_life,
-            user=self.user
+            user=self.user,
+            player_world=self.world
         )
-        self.world = World.objects.create(
-            world_name='TestWorld',
-            world_total_creatures=2,
-            world_min_level=1,
-            world_max_level=10
-        )
+
         self.creature_name = 'TestCreature'
         self.creature_level = 1
         self.creature_life = 100

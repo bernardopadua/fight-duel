@@ -9,6 +9,15 @@ class World(models.Model):
     world_min_level = models.IntegerField(default=1)
     world_max_level = models.IntegerField(default=100)
 
+    def to_world_enter(self):
+        return {
+            "id": self.id,
+            "worldName": self.world_name,
+            "worldMinLevel": self.world_min_level,
+            "worldMaxLevel": self.world_max_level
+        }
+
+
 class WorldCreature(models.Model):
     creature_name = models.CharField(max_length=100)
     creature_level = models.IntegerField(default=1)
@@ -69,12 +78,18 @@ class Player(models.Model):
     player_status = models.CharField(max_length=50, choices=PlayerStatus.choices, default=PlayerStatus.IDLE)
     player_max_weight = models.IntegerField(default=100)
     player_currency = models.IntegerField(default=0)
+    player_world = models.ForeignKey('World', on_delete=models.SET_NULL, null=True, blank=True, related_name='players')
 
 class PlayerInventory(models.Model):
     item = models.ForeignKey('Item', on_delete=models.CASCADE)
     player = models.ForeignKey('Player', on_delete=models.CASCADE)
 
 class Fight(models.Model):
-    creature = models.ForeignKey('WorldCreature', on_delete=models.CASCADE)
+    creature = models.ForeignKey('WorldCreature', on_delete=models.CASCADE, 
+        null=True, blank=True
+    )
     player = models.OneToOneField('Player', on_delete=models.CASCADE)
+    opponent = models.OneToOneField('Player', on_delete=models.CASCADE, 
+        null=True, blank=True, related_name="opponent_fight"
+    )
     fight_created_date = models.DateTimeField(auto_now_add=True)

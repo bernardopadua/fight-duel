@@ -6,6 +6,7 @@ from django.core.cache import cache
 from mmo.services.fight_engine import FightEngine
 from mmo.services.player_engine import PlayerEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
+from mmo.services.world_engine import WorldEngine
 from mmo.tasks import monster_attack
 from mmo.constants import USER_CHANNEL_WS_LOGGED
 
@@ -14,6 +15,8 @@ import json
 
 class ToClientActions:
     ERROR = "error"
+    
+    WORLD_ENTER = "world.enter"
 
     FIGHT = "fight"
     FIGHT_UPDATE = "fight.update"
@@ -22,6 +25,10 @@ class ToClientActions:
     INVENTORY_UPDATE = "inventory.update"
 
 class ToServerActions:
+    ENTER_WORLD = "enter.world"
+    LEAVE_WORLD = "leave.world"
+    CHANGE_WORLD = "change.world"
+
     MOVE = "move"
     ATTACK = "attack"
     FLEE = "flee"
@@ -67,6 +74,9 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             await sync_to_async(FightEngine.player_flee)(self.fight_id)
             await self.fight_finish_group({"fightId": self.fight_id})
 
+        #if player is in a world, leave it
+        await sync_to_async(WorldEngine.leave_world)(self.player_id)
+
         user = self.scope.get('user')
         if user and not user.is_anonymous:
             key = USER_CHANNEL_WS_LOGGED.format(user_id=user.id)
@@ -91,7 +101,27 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
-        if data.get("action") == ToServerActions.MOVE:
+        if data.get("action") == ToServerActions.ENTER_WORLD:
+            world_id = data.get("data") or None
+            if not world_id:
+                return
+            if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
+                await self.send(json.dumps({
+                    "action": ToClientActions.WORLD_ENTER,
+                    "data": world.to_world_enter()
+                }))
+        elif data.get("action") == ToServerActions.LEAVE_WORLD:
+            await sync_to_async(WorldEngine.leave_world)(self.player_id)
+        elif data.get("action") == ToServerActions.CHANGE_WORLD:
+            world_id = data.get("data") or None
+            if not world_id:
+                return
+            if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
+                await self.send(json.dumps({
+                    "action": ToClientActions.WORLD_ENTER,
+                    "data": world.to_world_enter()
+                }))
+        elif data.get("action") == ToServerActions.MOVE:
             if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
                 self.fight_id = fs.fight_id
                 await self.fight_create_group(fs.fight_id)
