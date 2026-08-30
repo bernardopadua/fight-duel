@@ -369,7 +369,11 @@ class MMOConsumerTests(TransactionTestCase):
         except Exception:
             pass
 
-    async def _connect_to_websocket(self, *, test_expired_connection: bool = False) -> WebsocketCommunicator:
+    async def _connect_to_websocket(self, 
+        *,
+        test_expired_connection: bool = False,
+        test_connected_false: bool = False
+    ) -> WebsocketCommunicator:
         token_headers = [
             (b'cookie', f'Authorization-JWT={self.token}'.encode()),
         ]
@@ -380,6 +384,10 @@ class MMOConsumerTests(TransactionTestCase):
         connected, _ = await communicator.connect()
 
         if test_expired_connection:
+            self.assertFalse(connected)    
+            return communicator
+
+        if test_connected_false:
             self.assertFalse(connected)    
             return communicator
 
@@ -885,3 +893,41 @@ class MMOConsumerTests(TransactionTestCase):
 
         cache_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id))
         self.assertIsNone(cache_channel)
+
+    async def test_logout_disconnect_ws(self):
+        new_client = APIClient()
+        response = await sync_to_async(new_client.post)(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+        self.token = response.data['token']
+
+        communicator = await self._connect_to_websocket()
+
+        response = await sync_to_async(new_client.post)(
+            '/api/auth/logout/',
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('success', response.data)
+
+        output = await communicator.receive_output()
+        self.assertEqual(output['type'], 'websocket.close')
+
+        await communicator.disconnect()
+
+        cache_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id))
+        self.assertIsNone(cache_channel)
+
+    async def test_two_open_ws_tabs(self):
+        communicator_1 = await self._connect_to_websocket()
+        communicator_2 = await self._connect_to_websocket(test_connected_false=True)
+
+        await communicator_1.disconnect()
+        await communicator_2.disconnect()
+        
