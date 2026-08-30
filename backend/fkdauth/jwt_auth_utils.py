@@ -37,7 +37,7 @@ def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str
     payload = {
         "userId": user_id,
         "exp": int(time.time()) + time_expires,
-        "iat": int(time.time()),
+        "iat": time.time(),
         "jti": str(uuid.uuid4())
     }
 

@@ -80,7 +80,7 @@ class LogoutView(APIView):
 
         cache.set(
             USER_JWT_BLOCKED_BEFORE.format(user_id=request.user.id), 
-            int(time.time()),
+            time.time(),
             timeout=max(expiration - time.time(), 1)
         )
         response.delete_cookie('Authorization-JWT')

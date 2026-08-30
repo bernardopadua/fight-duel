@@ -65,8 +65,10 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         if self.fight_id:
             await sync_to_async(FightEngine.player_flee)(self.fight_id)
             await self.fight_finish_group({"fightId": self.fight_id})
-        if self.user:
-            key = USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id)
+
+        user = self.scope.get('user')
+        if user and not user.is_anonymous:
+            key = USER_CHANNEL_WS_LOGGED.format(user_id=user.id)
             if await cache.aget(key) == self.channel_name:
                 await cache.adelete(key)
 

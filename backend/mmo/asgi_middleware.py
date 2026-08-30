@@ -34,7 +34,7 @@ class JWTASGIAuthMiddleware:
             token_iat = payload.get('iat')
 
             blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
-            if blocked_until and blocked_until >= token_iat:
+            if blocked_until and blocked_until > token_iat:
                 raise JWTError('Token revoked')
 
             user = User.objects.filter(id=user_id).first()
