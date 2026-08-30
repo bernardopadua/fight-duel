@@ -19,17 +19,22 @@ from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
 
 from mmo.constants import USER_CHANNEL_WS_LOGGED
 
-import time
+import time, logging
+
+logger = logging.getLogger(__name__)
 
 def send_logout_channel_message(user_id: int):
-    cl = get_channel_layer()
-    channel = cache.get(
-        USER_CHANNEL_WS_LOGGED.format(user_id=user_id)
-    )
-    if cl and channel:
-        async_to_sync(cl.send)(channel, {
-            "type": "user.logout"
-        })
+    try:
+        cl = get_channel_layer()
+        channel = cache.get(
+            USER_CHANNEL_WS_LOGGED.format(user_id=user_id)
+        )
+        if cl and channel:
+            async_to_sync(cl.send)(channel, {
+                'type': 'user.logout'
+            })
+    except Exception as e:
+        logger.exception('Error sending logout channel message: %s', e)
 
 class LoginView(APIView):
 
