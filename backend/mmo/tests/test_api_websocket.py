@@ -17,6 +17,7 @@ from mmo.services.fight_engine import FightEngine, FightStart
 from mmo.services.player_engine import PlayerEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
 from mmo.models import Player, PlayerInventory, World, WorldCreature, Fight, Item
+from mmo.constants import USER_CHANNEL_WS_LOGGED
 
 from fkdauth.jwt_auth_utils import create_token
 
@@ -863,3 +864,24 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertTrue(await communicator.receive_nothing())
 
         await communicator.disconnect()
+
+    async def test_login_disconnect_ws(self):
+        communicator = await self._connect_to_websocket()
+        
+        new_client = APIClient()
+        response = await sync_to_async(new_client.post)(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+
+        output = await communicator.receive_output()
+        self.assertEqual(output['type'], 'websocket.close')
+
+        await communicator.disconnect()
+
+        cache_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id))
+        self.assertIsNone(cache_channel)

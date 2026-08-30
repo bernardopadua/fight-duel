@@ -11,6 +11,8 @@ from fkdauth.jwt_auth_utils import (
     JWTError, JWTExpiredError
 )
 
+from mmo.constants import USER_CHANNEL_WS_LOGGED
+
 class JWTTests(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
@@ -166,3 +168,36 @@ class UserLoginTest(APITestCase):
         response = self.client.get('/api/auth/health-check/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn('detail', response.data)
+
+    def test_login_re_login_with_oldtoken(self):
+        response = self.client.post(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+
+        token = response.data['token']
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.post(
+            '/api/auth/logout/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('success', response.data)
+        self.assertEqual(response.cookies.get('Authorization-JWT').value, '')
+
+        self.client.credentials(HTTP_AUTHORIZATION='')
+        response = self.client.post(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+        self.assertNotEqual(response.data['token'], token)
+

@@ -27,14 +27,14 @@ class JWTASGIAuthMiddleware:
         return await self.app(scope, receive, send)
 
     @database_sync_to_async
-    def get_user(self, token):
+    def get_user(self, token: str) -> User | AnonymousUser:
         try:
             payload = decode_token(token, settings.SECRET_KEY)
             user_id = payload.get('userId')
             token_iat = payload.get('iat')
 
             blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
-            if blocked_until and blocked_until > token_iat:
+            if blocked_until and blocked_until >= token_iat:
                 raise JWTError('Token revoked')
 
             user = User.objects.filter(id=user_id).first()

@@ -137,6 +137,7 @@ docker compose exec fduel python manage.py test
 
 - [ ] Player can LOOT randomly through command `loot item_id`
   - [ ] Implement temporary fix, create date on item, so the routine that cleans orphan items cleans 2 minutes items old.
+- [x] Multiple tabs in browser (I consider this an issue). I will try to fix that.
 
 ## Project Status & Roadmap
 

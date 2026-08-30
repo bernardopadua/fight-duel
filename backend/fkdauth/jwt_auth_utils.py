@@ -2,7 +2,7 @@ from rest_framework.authentication import get_authorization_header
 from rest_framework.request import Request
 from django.http import HttpRequest
 
-import time, base64, json, hmac, hashlib
+import time, base64, json, hmac, hashlib, uuid
 from typing import Any
 
 class JWTError(Exception):
@@ -37,7 +37,8 @@ def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str
     payload = {
         "userId": user_id,
         "exp": int(time.time()) + time_expires,
-        "iat": int(time.time())
+        "iat": int(time.time()),
+        "jti": str(uuid.uuid4())
     }
 
     header = {

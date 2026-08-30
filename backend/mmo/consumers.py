@@ -1,10 +1,13 @@
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
+from django.core.cache import cache
+
 from mmo.services.fight_engine import FightEngine
 from mmo.services.player_engine import PlayerEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
 from mmo.tasks import monster_attack
+from mmo.constants import USER_CHANNEL_WS_LOGGED
 
 from typing import override
 import json
@@ -48,6 +51,13 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
         self.player_id = player_id
 
+        if not await cache.aadd(
+            USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id),
+            self.channel_name
+        ):
+            await self.close()
+            return
+
         await self.accept()
 
     @override
@@ -55,6 +65,13 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         if self.fight_id:
             await sync_to_async(FightEngine.player_flee)(self.fight_id)
             await self.fight_finish_group({"fightId": self.fight_id})
+        if self.user:
+            key = USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id)
+            if await cache.aget(key) == self.channel_name:
+                await cache.adelete(key)
+
+    async def user_logout(self, event: dict) -> None:
+        await self.close(1000)
 
     @override
     async def receive(self, text_data=None, bytes_data=None) -> None:

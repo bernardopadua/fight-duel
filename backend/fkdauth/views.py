@@ -1,7 +1,11 @@
+from asgiref.sync import async_to_sync
+
 from django.conf import settings
 from django.core.cache import cache
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+
+from channels.layers import get_channel_layer
 
 from rest_framework import status
 from rest_framework.views import APIView
@@ -13,7 +17,19 @@ from rest_framework.exceptions import AuthenticationFailed
 from fkdauth.jwt_auth_utils import create_token, get_expiration_from_request
 from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
 
+from mmo.constants import USER_CHANNEL_WS_LOGGED
+
 import time
+
+def send_logout_channel_message(user_id: int):
+    cl = get_channel_layer()
+    channel = cache.get(
+        USER_CHANNEL_WS_LOGGED.format(user_id=user_id)
+    )
+    if cl and channel:
+        async_to_sync(cl.send)(channel, {
+            "type": "user.logout"
+        })
 
 class LoginView(APIView):
 
@@ -37,6 +53,9 @@ class LoginView(APIView):
             token = create_token(user.id, settings.SECRET_KEY)
             response = Response({'token': token}, status=status.HTTP_200_OK)
             response.set_cookie('Authorization-JWT', token, httponly=True, samesite='Lax')
+
+            send_logout_channel_message(user.id)
+
             return response
 
 class HealthCheck(APIView):
@@ -56,6 +75,8 @@ class LogoutView(APIView):
         expiration = get_expiration_from_request(request)
         if not expiration:
             raise AuthenticationFailed('Invalid JWT token')
+
+        send_logout_channel_message(request.user.id)
 
         cache.set(
             USER_JWT_BLOCKED_BEFORE.format(user_id=request.user.id), 
