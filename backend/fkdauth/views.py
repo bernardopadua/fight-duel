@@ -56,6 +56,11 @@ class LoginView(APIView):
 
             send_logout_channel_message(user.id)
 
+            # Delete the user's old websocket channel
+            cache.delete(
+                USER_CHANNEL_WS_LOGGED.format(user_id=user.id)
+            )
+
             return response
 
 class HealthCheck(APIView):
@@ -78,6 +83,12 @@ class LogoutView(APIView):
 
         send_logout_channel_message(request.user.id)
 
+        # Delete the user's old websocket channel
+        cache.delete(
+            USER_CHANNEL_WS_LOGGED.format(user_id=request.user.id)
+        )
+
+        # Blocking old valid tokens from working
         cache.set(
             USER_JWT_BLOCKED_BEFORE.format(user_id=request.user.id), 
             time.time(),

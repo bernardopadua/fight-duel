@@ -53,7 +53,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
         if not await cache.aadd(
             USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id),
-            self.channel_name
+            self.channel_name,
+            timeout=None
         ):
             await self.close()
             return
