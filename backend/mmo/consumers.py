@@ -1,22 +1,31 @@
+from re import Match
+
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from django.core.cache import cache
 
-from mmo.services.fight_engine import FightEngine
+from mmo.services.fight_engine import FightEngine, FightStart
 from mmo.services.player_engine import PlayerEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
 from mmo.services.world_engine import WorldEngine
+from mmo.services.matchmaking_engine import MatchmakingEngine
 from mmo.tasks import monster_attack
-from mmo.constants import USER_CHANNEL_WS_LOGGED
+from mmo.constants import USER_CHANNEL_WS_LOGGED, FIGHT_GROUP
 
 from typing import override
-import json
+import json, logging
+
+logger = logging.getLogger("fight_duel_consumer")
 
 class ToClientActions:
     ERROR = "error"
     
     WORLD_ENTER = "world.enter"
+
+    FIGHT_MATCHMAKING = "fight.matchmaking"
+    FIGHT_MATCHMAKING_START = "fight.matchmaking.start"
+    FIGHT_MATCHMAKING_REJECT = "fight.matchmaking.reject"
 
     FIGHT = "fight"
     FIGHT_UPDATE = "fight.update"
@@ -28,6 +37,9 @@ class ToServerActions:
     ENTER_WORLD = "enter.world"
     LEAVE_WORLD = "leave.world"
     CHANGE_WORLD = "change.world"
+
+    ACCEPT_MATCHMAKING = "accept.matchmaking"
+    REJECT_MATCHMAKING = "reject.matchmaking"
 
     MOVE = "move"
     ATTACK = "attack"
@@ -41,6 +53,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     @override
     async def connect(self) -> None:
         self.fight_id = None
+        self.matchmaking = False
+        self.pvp = False
 
         if not "user" in self.scope or self.scope["user"] is None:
             await self.close()
@@ -51,12 +65,13 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
         
-        player_id = await sync_to_async(PlayerEngine.get_player_id)(self.user.id)
-        if player_id is None:
+        player_info = await sync_to_async(PlayerEngine.get_player_id)(self.user.id)
+        if player_info is None:
             await self.close()
             return
 
-        self.player_id = player_id
+        self.player_id = player_info.player_id
+        self.player_is_alive = player_info.is_player_alive
 
         if not await cache.aadd(
             USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id),
@@ -71,7 +86,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     @override
     async def disconnect(self, code: int) -> None:
         if self.fight_id:
-            await sync_to_async(FightEngine.player_flee)(self.fight_id)
+            await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=self.pvp)
             await self.fight_finish_group({"fightId": self.fight_id})
 
         #if player is in a world, leave it
@@ -101,6 +116,20 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
+        if self.matchmaking and \
+            data.get("action") != ToServerActions.ACCEPT_MATCHMAKING and \
+            data.get("action") != ToServerActions.REJECT_MATCHMAKING \
+        :
+            logger.error("Player %s is matchmaking but received action %s", self.user.id, data.get("action"))
+            return
+
+        if not self.player_is_alive:
+            await self.send(json.dumps({
+                "action": ToClientActions.ERROR,
+                "data": "Player is dead, please wait for revival"
+            }))
+            return
+
         if data.get("action") == ToServerActions.ENTER_WORLD:
             world_id = data.get("data") or None
             if not world_id:
@@ -121,34 +150,74 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
                     "action": ToClientActions.WORLD_ENTER,
                     "data": world.to_world_enter()
                 }))
+        elif data.get("action") == ToServerActions.ACCEPT_MATCHMAKING:
+            if not self.fight_id:
+                logger.error("No fight id for user %s", self.user.id)
+                return
+            await sync_to_async(MatchmakingEngine.inform_group_matchmaking_accepted)(self.fight_id)
+        elif data.get("action") == ToServerActions.REJECT_MATCHMAKING:
+            if not self.fight_id:
+                logger.error("No fight id for user %s", self.user.id)
+                return
+            await sync_to_async(MatchmakingEngine.inform_group_matchmaking_rejected)(self.fight_id, self.player_id)
         elif data.get("action") == ToServerActions.MOVE:
             if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
                 self.fight_id = fs.fight_id
                 await self.fight_create_group(fs.fight_id)
-                interval = await sync_to_async(FightEngine.monster_attack_interval)(fs.creature_level)
-                monster_attack.apply_async(
-                    args=[fs.fight_id, self.channel_name], 
-                    countdown=interval
-                )
-                await self.send(json.dumps({
-                    "action": ToClientActions.FIGHT,
-                    "data": fs.to_dict()
-                }))
+                
+                if not fs.opponent:
+                    await self.schedule_monster_attack(fs)
+
+                    await self.send(json.dumps({
+                        "action": ToClientActions.FIGHT,
+                        "data": fs.to_dict()
+                    }))
+                else:
+                    self.matchmaking = True
+                    await sync_to_async(MatchmakingEngine.matchmaking_cleanup_task_run)(self.fight_id)
+                    await sync_to_async(MatchmakingEngine.inform_player_matchmaking)(
+                        self.fight_id, 
+                        fs.player.player_name, 
+                        fs.player.player_level
+                    )
+
+                    await self.send(json.dumps({
+                        "action": ToClientActions.FIGHT_MATCHMAKING_START,
+                        "data": fs.to_dict()
+                    }))
         elif data.get("action") == ToServerActions.ATTACK:
             if not self.fight_id:
                 return
-            fs = await sync_to_async(FightEngine.attack_monster)(self.fight_id)
-            if fs is None: #pyright
-                return
+            
+            if self.pvp:
+                fs, fs_o = await sync_to_async(FightEngine.attack_pvp_player)(self.fight_id, self.player_id)
+                if not fs and not fs_o:
+                    logger.error("No fight state for fight %s", self.fight_id)
+                    return
+                data = {}
+                if fs:
+                    data[fs.player_id] = fs.to_dict()
+                if fs_o:
+                    data[fs_o.player_id] = fs_o.to_dict()
 
-            await self.send(json.dumps({
-                "action": ToClientActions.FIGHT_UPDATE,
-                "data": fs.to_dict()
-            }))
+                await self.channel_layer.group_send(
+                    FIGHT_GROUP.format(fight_id=self.fight_id),
+                    {
+                        "type": "fight.pvp.update",
+                        "data": data
+                    }
+                )
+            else:
+                fs = await sync_to_async(FightEngine.attack_monster)(self.fight_id)
+
+                await self.send(json.dumps({
+                    "action": ToClientActions.FIGHT_UPDATE,
+                    "data": fs.to_dict()
+                }))
         elif data.get("action") == ToServerActions.FLEE:
             if not self.fight_id:
                 return
-            await sync_to_async(FightEngine.player_flee)(self.fight_id)
+            await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=self.pvp)
         elif data.get("action") == ToServerActions.LOOT:
             items_looted = data.get("data") or None
             if not items_looted:
@@ -177,19 +246,35 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
                 "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
             }))
 
+    async def schedule_monster_attack(self, fs: FightStart) -> None:
+        if not self.fight_id:
+            return
+        creature_level = fs.creature_level if fs.creature_level else None
+        if not creature_level:
+            logger.error("No creature level %s", fs.fight_id)
+            return
+
+        interval = await sync_to_async(FightEngine.monster_attack_interval)(creature_level)
+        monster_attack.apply_async(
+            args=[fs.fight_id, self.channel_name], 
+            countdown=interval
+        )
+
     async def fight_create_group(self, fight_id: int) -> None:
         await self.channel_layer.group_add(
-            f"fight_{fight_id}",
+            FIGHT_GROUP.format(fight_id=fight_id),
             self.channel_name
         )
 
     async def fight_finish_group(self, event: dict) -> None:
         await self.channel_layer.group_discard(
-            f"fight_{event['fightId']}",
+            FIGHT_GROUP.format(fight_id=event['fightId']),
             self.channel_name
         )
 
         self.fight_id = None
+        self.matchmaking = False
+        self.pvp = False
 
         if itd := event.get("itemsDrop"):
             await self.send(json.dumps({
@@ -209,3 +294,68 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             "action": ToClientActions.FIGHT_UPDATE,
             "data": data
         }))
+    
+    async def fight_pvp_update(self, event: dict) -> None:
+        #Send data to both players
+        data = event["data"]
+        if not isinstance(data, dict):
+            logger.error("Invalid fight pvp update data %s", data)
+            return
+        for_me = data.get(self.player_id)
+        if not for_me:
+            logger.error("No fight state for player %s in fight %s", self.player_id, self.fight_id)
+            return
+        await self.send(json.dumps({
+            "action": ToClientActions.FIGHT_UPDATE,
+            "data": for_me
+        }))
+
+    async def fight_matchmaking(self, event: dict) -> None:
+        data = event["data"]
+        fight_id = data.get("fightId")
+        challenger_name = data.get("challengerName")
+        challenger_level = data.get("challengerLevel")
+        
+        self.matchmaking = True
+        self.fight_id = fight_id
+        
+        await self.fight_create_group(fight_id)
+
+        await self.send(json.dumps({
+            "action": ToClientActions.FIGHT_MATCHMAKING,
+            "data": {
+                "fightId": fight_id,
+                "challengerName": challenger_name,
+                "challengerLevel": challenger_level
+            }
+        }))
+    
+    async def fight_matchmaking_accepted(self, event: dict) -> None:
+        data = event["data"]
+        fight_id = data.get("fightId")
+        if not fight_id:
+            logger.error("No fight id for user %s", self.user.id)
+            return
+
+        await sync_to_async(MatchmakingEngine.matchmaking_in_fight)(fight_id)
+
+        self.pvp = True
+        self.matchmaking = False
+
+        await self.send(json.dumps({
+            "action": ToClientActions.FIGHT,
+            "data": {
+                "fightId": fight_id
+            }
+        }))
+
+    async def fight_matchmaking_rejected(self, event: dict) -> None:
+        await self.send(json.dumps({
+            "action": ToClientActions.FIGHT_MATCHMAKING_REJECT,
+            "data": {
+                "fightId": event['data']['fightId']
+            }
+        }))
+
+    async def player_revive_notify(self, event: dict) -> None:
+        self.player_is_alive = True

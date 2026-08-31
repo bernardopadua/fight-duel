@@ -5,10 +5,13 @@ from channels.layers import get_channel_layer
 
 from django.db.models import F
 from django.utils import timezone
+from django.core.cache import cache
 
 from mmo.services.fight_engine import FightEngine
 from mmo.services.player_engine import PlayerEngine
+from mmo.services.matchmaking_engine import MatchmakingEngine
 from mmo.services.constants import MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE
+from mmo.constants import MATCHMAKING_IN_FIGHT
 
 from mmo.models import WorldCreature, World, Player, Item
 from mmo.data.monster_names import MONSTER_NAMES
@@ -98,3 +101,19 @@ def clean_orphan_items() -> None:
 
     if len(orphan_items) > 0:
         orphan_items.delete()
+
+@shared_task
+def apply_death_penalty_to_player(player_id: int) -> None:
+    p = Player.objects.filter(id=player_id).first()
+    PlayerEngine.player_dead_penalty(p)
+
+@shared_task
+def clean_up_matchmaking_fight(fight_id: int) -> None:
+    if cache.get(MATCHMAKING_IN_FIGHT.format(fight_id=fight_id)):
+        return
+    MatchmakingEngine.matchmaking_timeout(fight_id)
+
+@shared_task
+def revive_dead_player(player_id: int) -> None:
+    p = Player.objects.filter(id=player_id).first()
+    PlayerEngine.revive_dead_player(p)

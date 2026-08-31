@@ -13,13 +13,47 @@ from .constants import (
     MONSTER_MAX_ATTACK, MONSTER_MIN_ATTACK, PLAYER_POWER_ATTACK_VARIATION,
     MONSTER_POWER_ATTACK_VARIATION, UNLOCK_FIGHT_LOCK
 )
-
+from mmo.constants import FIGHT_GROUP, USER_CHANNEL_WS_LOGGED
 from mmo.services.drop_engine import DropEngine
+from mmo.tasks import apply_death_penalty_to_player
 
 from random import randint
 from dataclasses import dataclass
 
-from typing import Any
+from typing import Any, TypeAlias
+import random, logging
+
+logger = logging.getLogger("fight_engine")
+
+@dataclass
+class FightPvPStatus:
+    player_id: int = 0
+    opponent_id: int = 0
+
+    is_player_alive: bool = True
+    is_opponent_alive: bool = True
+    is_fight_over: bool = False
+    player_life: int | None = None
+    opponent_life: int | None = None
+    player_level: int = 1
+    opponent_level: int = 1
+    player_name: str = ''
+    opponent_name: str = ''
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "isPlayerAlive": self.is_player_alive,
+            "isOpponentAlive": self.is_opponent_alive,
+            "isFightOver": self.is_fight_over,
+            "playerLife": self.player_life,
+            "opponentLife": self.opponent_life,
+            "playerLevel": self.player_level,
+            "opponentLevel": self.opponent_level,
+            "playerName": self.player_name,
+            "opponentName": self.opponent_name
+        }
+FightPvPStatusPlayer: TypeAlias = FightPvPStatus
+FightPvPStatusOpponent: TypeAlias = FightPvPStatus
 
 @dataclass
 class FightStatus:
@@ -49,8 +83,10 @@ class FightStatus:
 @dataclass
 class FightStart:
     fight_id: int
-    creature_name: str
-    creature_level: int
+    player: Player
+    opponent: Player | None
+    creature_name: str | None
+    creature_level: int | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -73,32 +109,55 @@ class FightEngine:
         if not p:
             return None
 
-        creature = WorldCreature.objects.filter(
-            fight__isnull=True
-        ).filter(
-            world=p.player_world,
-            creature_level__lte=p.player_level+4 #TODO: make better the random fight levels, not just +4
-        ).order_by('?').first()
-        if not creature:
-            creature = WorldCreature.objects.filter(
-                fight__isnull=True,
-                world=p.player_world
-            ).order_by('?').first()
-
-        if not creature:
-            return None
-
         if FightEngine.is_player_in_a_fight(player_id):
             return None
 
-        fight = cls.lock_fight(creature.id, player_id)
-        if fight is None:
+        # Should I fight with a player?
+        opponent: Player | None = None
+        creature: WorldCreature | None = None
+        if random.randint(0, 100) < 10:
+            opponent = Player.objects.filter(
+                player_world=p.player_world
+            ).exclude(
+                id=player_id,
+                player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
+            ).exclude(
+                player_world__isnull=True
+            ).order_by('?').first()
+
+            if opponent and cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=opponent.user_id)) is None:
+                opponent = None
+
+        if not opponent:
+            creature = WorldCreature.objects.filter(
+                fight__isnull=True
+            ).filter(
+                world=p.player_world,
+                creature_level__lte=p.player_level+4 #TODO: make better the random fight levels, not just +4
+            ).order_by('?').first()
+            if not creature:
+                creature = WorldCreature.objects.filter(
+                    fight__isnull=True,
+                    world=p.player_world
+                ).order_by('?').first()
+
+            if not creature:
+                return None
+
+        fight = cls.lock_fight(
+            player_id,
+            opponent_id=opponent.id if opponent else None,
+            creature_id=creature.id if creature else None
+        )
+        if not fight:
             return None
-        
+
         return FightStart(
             fight_id=fight.id,
-            creature_name=creature.creature_name,
-            creature_level=creature.creature_level
+            player=p,
+            opponent=opponent,
+            creature_name=creature.creature_name if creature else None,
+            creature_level=creature.creature_level if creature else None
         )
 
     @staticmethod
@@ -111,7 +170,7 @@ class FightEngine:
         )
         if cache.add(PLAYER_IS_ATTACKING.format(player_id=player.id), True, timeout=attack_time):
             return attack_time
-        
+
         return 0.0
 
     @staticmethod
@@ -122,38 +181,59 @@ class FightEngine:
         return attack_time
 
     @staticmethod
-    def lock_fight(creature_id: int, player_id: int) -> Fight | None:
+    def lock_fight(player_id: int, opponent_id: int | None = None, creature_id: int | None = None) -> Fight | None:
         #maybe some more checking here?
         
         with transaction.atomic():
-            is_creature_locked = WorldCreature.objects.select_for_update(
-                skip_locked=True
-            ).filter(id=creature_id).first()
+            is_opponent_locked: Player | None = None
+            is_creature_locked: WorldCreature | None = None
 
-            if is_creature_locked is None:
-                #TODO: Treat with a exception here
-                return
+            if opponent_id:
+                is_opponent_locked = Player.objects.select_for_update(
+                    skip_locked=True
+                ).filter(id=opponent_id).first()
 
-            Player.objects.filter(
-                id=player_id
-            ).update(
-                player_status=Player.PlayerStatus.FIGHTING
-            )
+                if is_opponent_locked is None:
+                    logger.error("Opponent %s is not locked", opponent_id)
+                    return
+            else:            
+                is_creature_locked = WorldCreature.objects.select_for_update(
+                    skip_locked=True
+                ).filter(id=creature_id).first()
+
+                if is_creature_locked is None:
+                    logger.error("Creature %s is not locked", creature_id)
+                    return
+
+            if is_opponent_locked:
+                Player.objects.filter(
+                    id__in=[player_id, opponent_id]
+                ).update(
+                    player_status=Player.PlayerStatus.FIGHTING
+                )
+            else:
+                Player.objects.filter(
+                    id=player_id
+                ).update(
+                    player_status=Player.PlayerStatus.FIGHTING
+                )
             
             return Fight.objects.create(
                 player_id=player_id,
-                creature_id=creature_id
+                creature_id=creature_id if creature_id else None,
+                opponent=is_opponent_locked if is_opponent_locked else None
             )
 
     @staticmethod
-    def unlock_finish_fight(fight_id: int, fs: FightStatus | None = None) -> None:
+    def unlock_finish_fight_pve(fight_id: int, fs: FightStatus | None = None) -> None:
         f = Fight.objects.filter(
             id=fight_id
         ).select_related(
-            "player",
-            "creature"
+            'player',
+            'creature'
         ).first()
         if not f:
+            logger.warning("Fight %s not found", fight_id)
             return
         
         p: Player = f.player
@@ -163,18 +243,14 @@ class FightEngine:
         with transaction.atomic():
             if p.player_status != Player.PlayerStatus.DEAD:
                 p.player_status = Player.PlayerStatus.IDLE
-            
-            if fs and not fs.is_monster_alive:
+
+            if f.creature and fs and not fs.is_monster_alive:
                 f.creature.delete() #this will delete fight
             else:
                 f.delete()
 
-            if not fs:
-                #TODO: Logging here
-                return 
-
             items_dict: list[dict[str, Any]] = []
-            if fs.is_player_alive and not fs.is_monster_alive:
+            if fs and fs.is_player_alive and not fs.is_monster_alive:
                 items, currency = DropEngine.drop_items(fs.creature_level, fs.creature_chance_drop)
                 items_dict = [i.to_dict() for i in items]
 
@@ -191,7 +267,65 @@ class FightEngine:
             return
 
         async_to_sync(cl.group_send)(
-            f"fight_{fight_id}", 
+            FIGHT_GROUP.format(fight_id=fight_id), 
+            {
+                "type": "fight.finish.group", 
+                "fightId": fight_id,
+                "fightStatus": fs.to_dict() if fs else None,
+                "itemsDrop": items_dict
+            }
+        )
+
+    @staticmethod
+    def unlock_finish_fight_pvp(
+        fight_id: int, 
+        player_id: int, 
+        fs: FightPvPStatus | None = None
+    ) -> None:
+        f = Fight.objects.filter(
+            id=fight_id
+        ).select_related(
+            'player',
+            'opponent'
+        ).first()
+        if not f:
+            logger.warning("Fight %s not found", fight_id)
+            return
+        
+        p: Player = f.player if f.player.id == player_id else f.opponent
+        o: Player = f.opponent if p == f.player else f.player
+        if not p or not o: #pyright
+            return 
+
+        with transaction.atomic():
+            if p.player_status != Player.PlayerStatus.DEAD:
+                p.player_status = Player.PlayerStatus.IDLE
+
+            if o.player_status != Player.PlayerStatus.DEAD:
+                o.player_status = Player.PlayerStatus.IDLE
+            
+            f.delete()
+
+            items_dict: list[dict[str, Any]] = []
+            if fs and fs.is_fight_over and fs.is_player_alive and not fs.is_opponent_alive:
+                items, currency = DropEngine.drop_items(o.player_level, random.randint(40, 100))
+                items_dict = [i.to_dict() for i in items]
+
+                p.player_currency += currency
+
+                #thinking on how I'm going to treat this
+                #but for now I think I will just let the client ask for a rest endpoint for player status refreshing
+                PlayerEngine.level_up(p, o.player_level)
+
+            p.save(update_fields=["player_status", "player_currency"])
+            o.save(update_fields=["player_status"])
+
+        cl = get_channel_layer()
+        if cl is None:
+            return
+
+        async_to_sync(cl.group_send)(
+            FIGHT_GROUP.format(fight_id=fight_id), 
             {
                 "type": "fight.finish.group", 
                 "fightId": fight_id,
@@ -213,6 +347,51 @@ class FightEngine:
         return Fight.objects.filter(
             Q(player_id=player_id) | Q(opponent_id=player_id)
         ).exists()
+
+    @classmethod
+    def player_flee(
+        cls, 
+        fight_id: int, 
+        player_id: int, *, 
+        is_pvp: bool = False
+    ) -> None:
+        if not cls.is_fight_still_active(fight_id):
+            return None
+        
+        f = Fight.objects.select_related(
+            'player',
+            'opponent'
+        ).filter(
+            id=fight_id
+        ).first()
+        if f is None:
+            return None
+
+        p: Player = f.player if f.player.id == player_id else f.opponent
+        o: Player = f.opponent if p == f.player else f.player
+
+        if is_pvp:
+            fs = FightPvPStatus(
+                is_player_alive=True if p.player_status != Player.PlayerStatus.DEAD else False,
+                is_opponent_alive=True if o.player_status != Player.PlayerStatus.DEAD else False,
+                player_life=p.player_life,
+                opponent_life=o.player_life,
+                player_level=p.player_level,
+                opponent_level=o.player_level,
+                is_fight_over=True,
+                player_name=p.player_name,
+                opponent_name=o.player_name
+            )
+            cls.unlock_finish_fight_pvp(fight_id, player_id, fs)
+            return
+
+        fs = FightStatus(
+            is_player_alive=True if p.player_status != Player.PlayerStatus.DEAD else False,
+            is_fight_over=True,
+            player_life=p.player_life
+        )
+
+        cls.unlock_finish_fight_pve(fight_id, fs)
 
     @classmethod
     def attack_monster(cls, fight_id: int) -> FightStatus | None:
@@ -261,7 +440,7 @@ class FightEngine:
             cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
         :
             fs.is_fight_over = True
-            cls.unlock_finish_fight(fight_id, fs)
+            cls.unlock_finish_fight_pve(fight_id, fs)
 
         return fs
 
@@ -289,7 +468,7 @@ class FightEngine:
                 int((c.creature_level + 10) * MONSTER_POWER_ATTACK_VARIATION),
                 c.creature_level + 10
             )
-            defense_power = p.player_equipped_armour.item.item_power if p.player_equipped_armour else 0
+            defense_power = PlayerEngine.get_player_defense_power(p)
             total_damage = max(0, (power_attack - defense_power))
             p.player_life = (p.player_life - total_damage) if (p.player_life - total_damage) > 0 else 0
             fs.creature_life = c.creature_life
@@ -311,25 +490,82 @@ class FightEngine:
             cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
         :
             fs.is_fight_over = True
-            cls.unlock_finish_fight(fight_id, fs)
+            cls.unlock_finish_fight_pve(fight_id, fs)
 
         return fs
 
     @classmethod
-    def player_flee(cls, fight_id: int) -> None:
-        if not cls.is_fight_still_active(fight_id):
-            return None
-        
-        f = Fight.objects.select_related('player').filter(id=fight_id).first()
-        if f is None:
-            return None
-        p: Player = f.player
+    def attack_pvp_player(cls, fight_id: int, player_id: int) -> tuple[FightPvPStatusPlayer | None, FightPvPStatusOpponent | None]:
+        with transaction.atomic():
+            fight = Fight.objects.select_for_update(of=['self']).select_related(
+                'player',
+                'opponent',
+                'player__player_equipped_armour__item',
+                'opponent__player_equipped_armour__item'
+            ).filter(
+                id=fight_id
+            ).first()
+            if not fight:
+                return None, None
+            
+            p: Player = fight.player if fight.player.id == player_id else fight.opponent
+            o: Player = fight.opponent if p == fight.player else fight.player
+            
+            fs = FightPvPStatus()
+            fs.player_id = p.id
+            fs.opponent_id = o.id
+            fs.is_player_alive = p.player_status != Player.PlayerStatus.DEAD
+            fs.is_opponent_alive = o.player_status != Player.PlayerStatus.DEAD
+            fs.is_fight_over = False
+            fs.opponent_life = o.player_life
+            fs.opponent_level = o.player_level
+            fs.player_name = p.player_name
+            fs.opponent_name = o.player_name
 
-        fs = FightStatus(
-            is_player_alive=True if p.player_status != Player.PlayerStatus.DEAD else False,
-            is_fight_over=True,
-            player_life=p.player_life
-        )
+            fs_o: FightPvPStatus = FightPvPStatus(
+                player_id=o.id,
+                opponent_id=p.id,
+                is_player_alive=o.player_status != Player.PlayerStatus.DEAD,
+                is_opponent_alive=p.player_status != Player.PlayerStatus.DEAD,
+                is_fight_over=False,
+                player_life=o.player_life,
+                opponent_life=p.player_life,
+                player_level=o.player_level,
+                opponent_level=p.player_level,
+                player_name=o.player_name,
+                opponent_name=p.player_name
+            )
 
-        cls.unlock_finish_fight(fight_id, fs)
+            if not cls.set_player_attacking(p):
+                return fs, fs_o
 
+            power_attack = PlayerEngine.get_player_total_power(p)
+            defense_power = PlayerEngine.get_player_defense_power(o)
+            total_damage = max(0, (power_attack - defense_power))
+            o.player_life = max(0, (o.player_life - total_damage))
+
+            fs.player_life = p.player_life
+            fs.player_level = p.player_level
+            
+            fs_o.player_life = o.player_life
+
+            unlock_fight = False
+
+            if o.player_life <= 0:
+                o.player_status = Player.PlayerStatus.DEAD
+                unlock_fight = True
+                fs.is_opponent_alive = False
+                
+                fs_o.is_player_alive = False
+                fs_o.is_opponent_alive = False
+
+                apply_death_penalty_to_player.delay(o.id)
+            
+            o.save(update_fields=["player_status", "player_life"])
+
+        if unlock_fight and cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
+            fs.is_fight_over = True
+            fs_o.is_fight_over = True
+            cls.unlock_finish_fight_pvp(fight_id, player_id, fs)
+
+        return fs, fs_o

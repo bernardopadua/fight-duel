@@ -8,3 +8,7 @@ Somethings use cases:
 - Player has to be in a world to find fights. The player can find fights against any other players.
 - Currently the player can find fights against any level in the range level of the world. Matchmaking tries to be fair making encounters that are somewhat balanced in creature level and player level.
 - Currently the move action is the base of actions (to fight), you have to move around to find fights and other players.
+- Player starts with 10 power points that is the base of damage calculation. Players start with 100 life points.
+- Player each weapon and amour gives a boost of Power, that will count to the final damage power. Amour also counts to the total power.
+- Amour counts to defense power against total power damage from another player.
+- 

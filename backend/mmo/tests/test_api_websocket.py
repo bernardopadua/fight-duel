@@ -1055,4 +1055,4 @@ class MMOConsumerTests(TransactionTestCase):
 
         await communicator_1.disconnect()
         await communicator_2.disconnect()
-        
+

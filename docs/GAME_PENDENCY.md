@@ -1,0 +1,2 @@
+- How much time do the player waits till revives ?
+  - When decided, implement a task to run along with clean up fight in the container start
