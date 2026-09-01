@@ -657,7 +657,23 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertTrue(response['data']['isFightOver'])
 
         await communicator.disconnect()
-    
+
+    async def test_websocket_move_as_dead_player(self):
+        self.player.player_status = Player.PlayerStatus.DEAD
+        await self.player.asave(update_fields=['player_status'])
+
+        communicator = await self._connect_to_websocket()
+        
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['action'], ToClientActions.ERROR)
+        self.assertIn('data', response)
+        self.assertIsNotNone(response['data'])
+        self.assertIn('Player is dead', response['data'])
+
+        await communicator.disconnect()
+
     @patch('mmo.services.fight_engine.DropEngine.drop_items')
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_websocket_move_and_fight_loot_item(self, mock_monster_attack, mock_drop_items):

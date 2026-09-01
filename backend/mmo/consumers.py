@@ -26,6 +26,7 @@ class ToClientActions:
     FIGHT_MATCHMAKING = "fight.matchmaking"
     FIGHT_MATCHMAKING_START = "fight.matchmaking.start"
     FIGHT_MATCHMAKING_REJECT = "fight.matchmaking.reject"
+    FIGHT_MATCHMAKING_TIMEOUT = "fight.matchmaking.timeout"
 
     FIGHT = "fight"
     FIGHT_UPDATE = "fight.update"
@@ -191,7 +192,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             if self.pvp:
                 fs, fs_o = await sync_to_async(FightEngine.attack_pvp_player)(self.fight_id, self.player_id)
                 if not fs and not fs_o:
-                    logger.error("No fight state for fight %s", self.fight_id)
+                    # It's normal, but I will maintain for now
+                    logger.warning("No fight state for fight %s", self.fight_id)
                     return
                 data = {}
                 if fs:
@@ -353,6 +355,14 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     async def fight_matchmaking_rejected(self, event: dict) -> None:
         await self.send(json.dumps({
             "action": ToClientActions.FIGHT_MATCHMAKING_REJECT,
+            "data": {
+                "fightId": event['data']['fightId']
+            }
+        }))
+
+    async def fight_matchmaking_timeout(self, event: dict) -> None:
+        await self.send(json.dumps({
+            "action": ToClientActions.FIGHT_MATCHMAKING_TIMEOUT,
             "data": {
                 "fightId": event['data']['fightId']
             }

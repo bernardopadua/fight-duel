@@ -162,7 +162,7 @@ class MatchmakingEngine:
                 }
             }
         )
-        
-        FightEngine.unlock_finish_fight_pvp(fight_id, f.player_id, None)        
+
+        FightEngine.unlock_finish_fight_pvp(fight_id, f.player_id, None, None)        
 
         return True
