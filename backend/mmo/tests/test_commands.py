@@ -4,6 +4,7 @@ from django.core.management import call_command
 
 from mmo.models import Fight, Player, World, WorldCreature
 from mmo.services.fight_engine import FightEngine
+from mmo.services.world_engine import WorldEngine
 
 class TestCommands(TestCase):
     def setUp(self) -> None:
@@ -34,6 +35,9 @@ class TestCommands(TestCase):
         )
     
     def test_clean_locked_fights(self):
+        wr = WorldEngine.enter_world(self.player.id, self.world.id)
+        self.assertIsNotNone(wr)
+        self.assertEqual(self.world.world_name, wr.world_name) #pyright: ignore
         fs = FightEngine.should_fight(self.player.id)
         self.assertIsNotNone(fs)
         self.assertEqual(Fight.objects.count(), 1)

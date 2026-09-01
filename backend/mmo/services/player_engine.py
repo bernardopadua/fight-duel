@@ -1,5 +1,13 @@
+from asgiref.sync import async_to_sync
+
+from dataclasses import dataclass
+
 from django.db.models import QuerySet, F
 from django.db.models.functions import Least
+from django.core.cache import cache
+
+from channels.layers import get_channel_layer
+
 
 from mmo.models import Player
 from mmo.services.constants import (
@@ -8,10 +16,22 @@ from mmo.services.constants import (
     LEVELUP_VARIATION_POWER, LEVELUP_MULTIPLIER_EXP,
     LEVELUP_PLUS_PLAYERPOWER, LEVEL_MAX
 )
+from mmo.constants import (
+    USER_CHANNEL_WS_LOGGED,
+)
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class PlayerInfo:
+    is_player_alive: bool
+    player_id: int
 
 class PlayerEngine:
     @staticmethod
-    def get_player_id(user_id: int) -> int | None:
+    def get_player_id(user_id: int) -> PlayerInfo | None:
         player = Player.objects.filter(
             user_id=user_id
         ).first()
@@ -19,7 +39,12 @@ class PlayerEngine:
         if player is None:
             return None
         
-        return player.id
+        ps = PlayerInfo(
+            is_player_alive=player.player_status != Player.PlayerStatus.DEAD,
+            player_id=player.id
+        )
+
+        return ps
     
     @staticmethod
     def get_player_total_power(player: Player) -> int:
@@ -34,6 +59,11 @@ class PlayerEngine:
         total_power = (player.player_power + items_power)
 
         return total_power
+
+    @staticmethod
+    def get_player_defense_power(player: Player) -> int:
+        armour = player.player_equipped_armour.item if player.player_equipped_armour else None
+        return armour.item_power if armour else 0
     
     @classmethod
     def get_player_calculated_life(cls, player: Player) -> int:
@@ -100,7 +130,11 @@ class PlayerEngine:
             player.save(update_fields=['player_exp'])
 
     @staticmethod
-    def player_dead_penalty(player: Player) -> None:
+    def player_dead_penalty(player: Player | None) -> None:
+        if not player:
+            logger.warning("Player not found")
+            return
+
         armour = player.player_equipped_armour.item if player.player_equipped_armour else None
         weapon = player.player_equipped_weapon.item if player.player_equipped_weapon else None
 
@@ -113,3 +147,26 @@ class PlayerEngine:
 
         player.player_exp = 0
         player.save(update_fields=["player_exp"])
+
+    @staticmethod
+    def revive_dead_player(player: Player | None) -> None:
+        if not player:
+            logger.warning("Player not found")
+            return
+
+        player.player_status = Player.PlayerStatus.IDLE
+        player.save(update_fields=["player_status"])
+
+        player_channel = cache.get(
+            USER_CHANNEL_WS_LOGGED.format(user_id=player.user_id)
+        )
+
+        cl = get_channel_layer()
+        if cl is None:
+            logger.error("Channel layer not found")
+            return
+
+        async_to_sync(cl.send)(player_channel, {
+            "type": "player.revive.notify",
+            "data": {}
+        })

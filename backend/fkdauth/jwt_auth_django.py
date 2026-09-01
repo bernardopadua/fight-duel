@@ -1,17 +1,13 @@
-from django.conf import settings
 from django.http import HttpRequest
 from django.contrib.auth.models import User
 
-from rest_framework.authentication import BaseAuthentication, get_authorization_header
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 
-from django.core.cache import cache
-
-from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
-
 from fkdauth.jwt_auth_utils import (
-    decode_token, JWTError, JWTExpiredError,
-    get_token_from_request
+    JWTError, JWTExpiredError,
+    get_token_from_request,
+    resolve_user_and_validate_from_token
 )
 
 from typing import override
@@ -28,16 +24,7 @@ class JWTAuthenticationBackend(BaseAuthentication):
             if not (token := get_token_from_request(request)):
                 return None
 
-            payload = decode_token(token, settings.SECRET_KEY)
-
-            user_id = payload['userId']
-            token_iat = payload['iat']
-
-            blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
-            if blocked_until and blocked_until > token_iat:
-                raise JWTError('Token revoked')
-
-            user = User.objects.filter(id=user_id).first()
+            user = resolve_user_and_validate_from_token(token)
             if not user or not user.is_active:
                 return None
 

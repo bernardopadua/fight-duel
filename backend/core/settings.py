@@ -179,11 +179,11 @@ CELERY_TASK_SERIALIZER = 'json'
 
 CELERY_BEAT_SCHEDULE = {
     'mmo-game-tick': {
-        'task': 'mmo.tasks.tick',
+        'task': 'mmo.tasks.task_world.tick',
         'schedule': float(os.environ['CELERY_BEAT_MMO_TICK']), #seconds
     },
     'mmo-game-clean-orphan-items': {
-        'task': 'mmo.tasks.clean_orphan_items',
+        'task': 'mmo.tasks.task_world.clean_orphan_items',
         'schedule': float(os.environ['CELERY_BEAT_MMO_ORPHAN_ITEMS']), #seconds
     },
 }

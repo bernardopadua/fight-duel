@@ -15,11 +15,14 @@ from core.asgi import application
 from mmo.consumers import ToClientActions, ToServerActions
 from mmo.services.fight_engine import FightEngine, FightStart
 from mmo.services.player_engine import PlayerEngine
+from mmo.services.world_engine import WorldEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
 from mmo.models import Player, PlayerInventory, World, WorldCreature, Fight, Item
 from mmo.constants import USER_CHANNEL_WS_LOGGED
 
 from fkdauth.jwt_auth_utils import create_token
+
+import threading
 
 class MMOPlayerTests(APITestCase):
     
@@ -93,6 +96,20 @@ class MMOPlayerFightTests(TestCase):
     def setUp(self) -> None:
         cache.clear()
 
+        self.world = World.objects.create(
+            world_name='TestWorld',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
+        
+        self.world_2 = World.objects.create(
+            world_name='TestWorld2',
+            world_total_creatures=2,
+            world_min_level=10,
+            world_max_level=20
+        )
+
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
         self.player_life = 100
         self.player = Player.objects.create(
@@ -100,14 +117,21 @@ class MMOPlayerFightTests(TestCase):
             player_level=10,
             player_power=100,
             player_life=self.player_life,
-            user=self.user
+            user=self.user,
+            player_world=self.world
         )
-        self.world = World.objects.create(
-            world_name='TestWorld',
-            world_total_creatures=2,
-            world_min_level=1,
-            world_max_level=10
+
+        self.user_2 = User.objects.create_user(username='test_2', email='test_2@test.com', password='123456')
+        self.player_life_2 = 100
+        self.player_2 = Player.objects.create(
+            player_name='TestPlayer_2',
+            player_level=10,
+            player_power=100,
+            player_life=self.player_life_2,
+            user=self.user_2,
+            player_world=self.world
         )
+
         self.creature_name = 'TestCreature'
         self.creature_level = 1
         self.creature_life = 100
@@ -162,6 +186,36 @@ class MMOPlayerFightTests(TestCase):
 
         return fs
 
+    def test_fight_should_not_fight_player_is_not_in_world(self):
+        self.player.player_world = None
+        self.player.save(update_fields=['player_world'])
+
+        fs = FightEngine.should_fight(self.player.id)
+        self.assertIsNone(fs)
+    
+    def test_fight_should_not_fight_player_is_dead(self):
+        self.player.player_life = 0
+        self.player.player_status = Player.PlayerStatus.DEAD
+        self.player.save(update_fields=['player_life','player_status'])
+
+        fs = FightEngine.should_fight(self.player.id)
+        self.assertIsNone(fs)
+
+    def test_fight_should_not_fight_player_is_fighting(self):
+        self.player.player_status = Player.PlayerStatus.FIGHTING
+        self.player.save(update_fields=['player_status'])
+
+        fs = FightEngine.should_fight(self.player.id)
+        self.assertIsNone(fs)
+
+    def test_fight_cant_enter_world_high_level(self):
+        self.player.player_level = 20
+        self.player.player_world = None
+        self.player.save(update_fields=['player_level', 'player_world'])
+
+        result = WorldEngine.enter_world(self.player.id, self.world.id)
+        self.assertIsNone(result)
+
     def test_fight_move_start(self):
         fs = FightEngine.should_fight(self.player.id)
         self.assertIsNotNone(fs)
@@ -171,7 +225,7 @@ class MMOPlayerFightTests(TestCase):
         fight = Fight.objects.filter(id=fs.fight_id)
         self.assertEqual(fight.count(), 1)
         self.assertEqual(fs.fight_id, fight.first().id)
-        
+
     def test_fight_attack_monster(self):
         fs = self._should_fight()
         
@@ -186,7 +240,7 @@ class MMOPlayerFightTests(TestCase):
     def test_fight_player_flee(self):
         fs = self._should_fight()
         
-        FightEngine.player_flee(fs.fight_id)
+        FightEngine.player_flee(fs.fight_id, self.player.id)
 
         f = Fight.objects.filter(id=fs.fight_id)
         self.assertEqual(f.count(), 0)
@@ -292,6 +346,20 @@ class MMOConsumerTests(TransactionTestCase):
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
         self.token = create_token(self.user.id, settings.SECRET_KEY)
 
+        self.world = World.objects.create(
+            world_name='TestWorld',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
+
+        self.world_2 = World.objects.create(
+            world_name='TestWorld2',
+            world_total_creatures=2,
+            world_min_level=10,
+            world_max_level=20
+        )
+
         self.player_power = 999
         self.player_life = 100
         self.player = Player.objects.create(
@@ -299,14 +367,10 @@ class MMOConsumerTests(TransactionTestCase):
             player_level=10,
             player_power=self.player_power,
             player_life=self.player_life,
-            user=self.user
+            user=self.user,
+            player_world=self.world
         )
-        self.world = World.objects.create(
-            world_name='TestWorld',
-            world_total_creatures=2,
-            world_min_level=1,
-            world_max_level=10
-        )
+        
         self.creature_name = 'TestCreature'
         self.creature_level = 1
         self.creature_life = 100
@@ -455,6 +519,80 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIsNotNone(player) # <<<
         self.assertEqual(player.player_status, Player.PlayerStatus.IDLE) # pyright: ignore
 
+    async def test_websocket_move_and_fight_without_world(self):
+        self.player.player_world = None
+        await self.player.asave(update_fields=['player_world'])
+
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        self.assertTrue(await communicator.receive_nothing())
+        self.assertFalse(await sync_to_async(FightEngine.is_player_in_a_fight)(self.player.id))
+
+        await communicator.disconnect()
+
+    async def test_websocket_enter_in_world(self):
+        self.player.player_world = None
+        await self.player.asave(update_fields=['player_world'])
+
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.ENTER_WORLD, 'data': self.world.id})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.WORLD_ENTER)
+        self.assertIn('data', response)
+        self.assertIn('id', response['data'])
+        self.assertIsNotNone(response['data']['id'])
+        self.assertEqual(response['data']['id'], self.world.id)
+        self.assertEqual(response['data']['worldName'], self.world.world_name)
+
+        await communicator.disconnect()
+
+    async def test_websocket_change_world_after_entering(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.ENTER_WORLD, 'data': self.world.id})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.WORLD_ENTER)
+        self.assertIn('data', response)
+        self.assertIn('id', response['data'])
+        self.assertIsNotNone(response['data']['id'])
+        self.assertEqual(response['data']['id'], self.world.id)
+        self.assertEqual(response['data']['worldName'], self.world.world_name)
+
+        await communicator.send_json_to({'action': ToServerActions.CHANGE_WORLD, 'data': self.world_2.id})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.WORLD_ENTER)
+        self.assertIn('data', response)
+        self.assertIn('id', response['data'])
+        self.assertIsNotNone(response['data']['id'])
+        self.assertEqual(response['data']['id'], self.world_2.id)
+        self.assertEqual(response['data']['worldName'], self.world_2.world_name)
+
+        await communicator.disconnect()
+
+    async def test_websocket_enter_world_rejected_due_to_world_max_level(self):
+        self.player.player_level = 101
+        self.player.player_world = None
+        await self.player.asave(update_fields=['player_level', 'player_world'])
+
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.ENTER_WORLD, 'data': self.world.id})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await self.player.arefresh_from_db()
+        self.assertIsNone(self.player.player_world)
+
+        await communicator.disconnect()
+
+    async def test_websocket_disconnect_leaves_world(self):
+        communicator = await self._connect_to_websocket()
+        await communicator.disconnect()
+        
+        await self.player.arefresh_from_db()
+        self.assertIsNone(self.player.player_world)
+
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_attack_spam(self, mock_monster_attack):
         self.player.player_power = 1
@@ -505,7 +643,7 @@ class MMOConsumerTests(TransactionTestCase):
         fight_id = response['data']['fightId']
 
         #monster attack
-        from mmo.tasks import monster_attack
+        from mmo.tasks.task_fight import monster_attack
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()
@@ -532,7 +670,23 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertTrue(response['data']['isFightOver'])
 
         await communicator.disconnect()
-    
+
+    async def test_websocket_move_as_dead_player(self):
+        self.player.player_status = Player.PlayerStatus.DEAD
+        await self.player.asave(update_fields=['player_status'])
+
+        communicator = await self._connect_to_websocket()
+        
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['action'], ToClientActions.ERROR)
+        self.assertIn('data', response)
+        self.assertIsNotNone(response['data'])
+        self.assertIn('Player is dead', response['data'])
+
+        await communicator.disconnect()
+
     @patch('mmo.services.fight_engine.DropEngine.drop_items')
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_websocket_move_and_fight_loot_item(self, mock_monster_attack, mock_drop_items):
@@ -555,7 +709,7 @@ class MMOConsumerTests(TransactionTestCase):
         fight_id = response['data']['fightId']
 
         #monster attack
-        from mmo.tasks import monster_attack
+        from mmo.tasks.task_fight import monster_attack
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()
@@ -787,7 +941,7 @@ class MMOConsumerTests(TransactionTestCase):
         fight_id = response['data']['fightId']
 
         #monster attack
-        from mmo.tasks import monster_attack
+        from mmo.tasks.task_fight import monster_attack
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()
@@ -930,4 +1084,4 @@ class MMOConsumerTests(TransactionTestCase):
 
         await communicator_1.disconnect()
         await communicator_2.disconnect()
-        
+

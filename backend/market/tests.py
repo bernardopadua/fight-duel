@@ -4,9 +4,10 @@ from rest_framework import status
 from django.contrib.auth.models import User
 
 from mmo.consumers import FightEngine, PlayerInventoryEngine
-from mmo.models import Item, World, WorldCreature, Player, PlayerInventory
+from mmo.models import Item, World, WorldCreature, Player
 from market.models import MarketDeal
 from mmo.services.fight_engine import FightStart
+from mmo.services.world_engine import WorldEngine
 
 class MarketTests(APITestCase):
     
@@ -249,6 +250,10 @@ class MarketTests(APITestCase):
 
 
     def move_into_a_fight(self, player_id: int) -> FightStart:
+        wr = WorldEngine.enter_world(player_id, self.world.id)
+        self.assertIsNotNone(wr)
+        self.assertEqual(wr.world_name, self.world.world_name) #pyright: ignore
+        
         fs = FightEngine.should_fight(
             player_id
         )
