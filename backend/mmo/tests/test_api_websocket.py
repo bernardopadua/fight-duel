@@ -227,7 +227,7 @@ class MMOPlayerFightTests(TestCase):
     def test_fight_player_flee(self):
         fs = self._should_fight()
         
-        FightEngine.player_flee(fs.fight_id)
+        FightEngine.player_flee(fs.fight_id, self.player.id)
 
         f = Fight.objects.filter(id=fs.fight_id)
         self.assertEqual(f.count(), 0)
@@ -630,7 +630,7 @@ class MMOConsumerTests(TransactionTestCase):
         fight_id = response['data']['fightId']
 
         #monster attack
-        from mmo.tasks import monster_attack
+        from mmo.tasks.task_fight import monster_attack
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()
@@ -680,7 +680,7 @@ class MMOConsumerTests(TransactionTestCase):
         fight_id = response['data']['fightId']
 
         #monster attack
-        from mmo.tasks import monster_attack
+        from mmo.tasks.task_fight import monster_attack
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()
@@ -912,7 +912,7 @@ class MMOConsumerTests(TransactionTestCase):
         fight_id = response['data']['fightId']
 
         #monster attack
-        from mmo.tasks import monster_attack
+        from mmo.tasks.task_fight import monster_attack
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()

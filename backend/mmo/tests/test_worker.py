@@ -12,7 +12,8 @@ from core.celery import app
 from core.settings import CELERY_RESULT_BACKEND
 from mmo.models import Item, Player, World, WorldCreature
 from mmo.services.fight_engine import FightEngine
-from mmo.tasks import clean_orphan_items, respawn_creatures, recover_player_status, monster_attack
+from mmo.tasks.task_world import clean_orphan_items, respawn_creatures, recover_player_status
+from mmo.tasks.task_fight import monster_attack
 
 from datetime import timedelta
 
@@ -129,8 +130,8 @@ class MMOCeleryWorkerTests(TransactionTestCase):
         self.assertGreater(self.player.player_stamina, 50)
         self.assertTrue(async_result.successful())
 
-    @patch('mmo.tasks.async_to_sync')
-    @patch('mmo.tasks.get_channel_layer')
+    @patch('mmo.tasks.task_fight.async_to_sync')
+    @patch('mmo.tasks.task_fight.get_channel_layer')
     def test_monster_attack(self, mock_get_channel_layer, mock_async_to_sync):
         fs = FightEngine.should_fight(self.player.id)
         self.assertIsNotNone(fs)

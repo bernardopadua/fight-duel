@@ -15,7 +15,8 @@ from .constants import (
 )
 from mmo.constants import FIGHT_GROUP, USER_CHANNEL_WS_LOGGED
 from mmo.services.drop_engine import DropEngine
-from mmo.tasks import apply_death_penalty_to_player
+
+from mmo.tasks.task_player import apply_death_penalty_to_player
 
 from random import randint
 from dataclasses import dataclass
@@ -115,11 +116,12 @@ class FightEngine:
         # Should I fight with a player?
         opponent: Player | None = None
         creature: WorldCreature | None = None
-        if random.randint(0, 100) < 10:
+        if random.randint(0, 100) < 100:
             opponent = Player.objects.filter(
                 player_world=p.player_world
             ).exclude(
-                id=player_id,
+                id=player_id
+            ).exclude(
                 player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
             ).exclude(
                 player_world__isnull=True

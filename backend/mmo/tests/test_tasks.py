@@ -8,7 +8,8 @@ from fkdauth.jwt_auth_utils import create_token
 
 from mmo.models import World, Player, WorldCreature, Item, Fight
 from mmo.services.fight_engine import FightEngine, FightStart
-from mmo.tasks import monster_attack, respawn_creatures, recover_player_status, tick, clean_orphan_items
+from mmo.tasks.task_fight import monster_attack
+from mmo.tasks.task_world import respawn_creatures, recover_player_status, tick, clean_orphan_items
 
 from django.utils import timezone
 from datetime import timedelta
@@ -101,9 +102,9 @@ class MMOTasksTests(TestCase):
 
         return fs #pyright: ignore
 
-    @patch('mmo.tasks.get_channel_layer')
-    @patch('mmo.tasks.monster_attack.apply_async')
-    @patch('mmo.tasks.async_to_sync')
+    @patch('mmo.tasks.task_fight.get_channel_layer')
+    @patch('mmo.tasks.task_fight.monster_attack.apply_async')
+    @patch('mmo.tasks.task_fight.async_to_sync')
     def test_monster_attack(self, mock_async_to_sync, mock_apply_async, mock_get_channel_layer):
         fs = self._setup_fight()
 
@@ -137,7 +138,7 @@ class MMOTasksTests(TestCase):
 
         self.assertEqual(total_monsters, 2)       
 
-    @patch('mmo.tasks.PlayerEngine.recover_players_status')
+    @patch('mmo.tasks.task_world.PlayerEngine.recover_players_status')
     def test_recover_player_status(self, mock_recover_players_status):
         fs = FightEngine.should_fight(self.player.id)
         self.assertIsNotNone(fs) # <<<<
@@ -157,13 +158,13 @@ class MMOTasksTests(TestCase):
         mock_recover_players_status.assert_called_once()
         mock_recover_players_status.reset_mock()
 
-        FightEngine.player_flee(fs.fight_id) #pyright: ignore
-        
+        FightEngine.player_flee(fs.fight_id, self.player.id) #pyright: ignore
+
         recover_player_status()
         
         mock_recover_players_status.assert_called_once()
 
-    @patch('mmo.tasks.PlayerEngine.recover_players_status')
+    @patch('mmo.tasks.task_world.PlayerEngine.recover_players_status')
     def test_recover_player_status_dead_in_fight(self, mock_recover_players_status):
         self.player.player_status = Player.PlayerStatus.DEAD
         self.player.save(update_fields=['player_status'])
@@ -186,8 +187,8 @@ class MMOTasksTests(TestCase):
         self.assertGreater(self.player.player_life, 50)
         self.assertGreater(self.player.player_stamina, 50)
 
-    @patch('mmo.tasks.respawn_creatures.delay')
-    @patch('mmo.tasks.recover_player_status.delay')
+    @patch('mmo.tasks.task_world.respawn_creatures.delay')
+    @patch('mmo.tasks.task_world.recover_player_status.delay')
     def test_cron_tasks(self, mock_recover_player_status, mock_respawn_creatures):
         tick()
 

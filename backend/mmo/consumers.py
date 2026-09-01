@@ -10,7 +10,7 @@ from mmo.services.player_engine import PlayerEngine
 from mmo.services.player_inventory_engine import PlayerInventoryEngine
 from mmo.services.world_engine import WorldEngine
 from mmo.services.matchmaking_engine import MatchmakingEngine
-from mmo.tasks import monster_attack
+from mmo.tasks.task_fight import monster_attack
 from mmo.constants import USER_CHANNEL_WS_LOGGED, FIGHT_GROUP
 
 from typing import override
@@ -209,11 +209,11 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
                 )
             else:
                 fs = await sync_to_async(FightEngine.attack_monster)(self.fight_id)
-
-                await self.send(json.dumps({
-                    "action": ToClientActions.FIGHT_UPDATE,
-                    "data": fs.to_dict()
-                }))
+                if fs:
+                    await self.send(json.dumps({
+                        "action": ToClientActions.FIGHT_UPDATE,
+                        "data": fs.to_dict()
+                    }))
         elif data.get("action") == ToServerActions.FLEE:
             if not self.fight_id:
                 return

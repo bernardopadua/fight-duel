@@ -9,11 +9,9 @@ from mmo.constants import (
     USER_CHANNEL_WS_LOGGED, FIGHT_GROUP, 
     OPPONENTS_IN_FIGHT_CACHE, MATCHMAKING_IN_FIGHT
 )
-from mmo.tasks import clean_up_matchmaking_fight
+from mmo.services.fight_engine import FightEngine
 
 import logging
-
-from mmo.services.fight_engine import FightEngine
 
 logger = logging.getLogger('matchmaking_engine')
 
@@ -140,6 +138,7 @@ class MatchmakingEngine:
 
     @staticmethod
     def matchmaking_cleanup_task_run(fight_id: int) -> None:
+        from mmo.tasks.task_matchmaking import clean_up_matchmaking_fight
         clean_up_matchmaking_fight.apply_async(args=[fight_id], countdown=60)
 
     @staticmethod
