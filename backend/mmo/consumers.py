@@ -86,11 +86,13 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
     @override
     async def disconnect(self, code: int) -> None:
-        if self.fight_id:
-            await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=self.pvp)
+        if self.player_id and self.fight_id:
+            is_pvp = self.matchmaking or self.pvp
+            await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=is_pvp)
 
-        #if player is in a world, leave it
-        await sync_to_async(WorldEngine.leave_world)(self.player_id)
+        if self.player_id:
+            #if player is in a world, leave it
+            await sync_to_async(WorldEngine.leave_world)(self.player_id)
 
         user = self.scope.get('user')
         if user and not user.is_anonymous:
@@ -154,7 +156,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             if not self.fight_id:
                 logger.error("No fight id for user %s", self.user.id)
                 return
-            await sync_to_async(MatchmakingEngine.inform_group_matchmaking_accepted)(self.fight_id)
+            await sync_to_async(MatchmakingEngine.inform_group_matchmaking_accepted)(self.fight_id, self.player_id)
         elif data.get("action") == ToServerActions.REJECT_MATCHMAKING:
             if not self.fight_id:
                 logger.error("No fight id for user %s", self.user.id)

@@ -328,6 +328,52 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         await com2.disconnect()
 
     @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
+    async def test_matchmaking_found_match_1_vs_1_accept_mm_same_user(self, mock_matchmaking_cleanup_task_run):
+        com1 = await self._connect_to_websocket_p1()
+        com2 = await self._connect_to_websocket_p2()
+       
+        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+            await com1.send_json_to({'action': ToServerActions.MOVE})
+            response_1 = await com1.receive_json_from()
+
+            mock_matchmaking_cleanup_task_run.assert_called_once()
+
+            self.assertIn('action', response_1)
+            self.assertEqual(response_1['action'], ToClientActions.FIGHT_MATCHMAKING_START)
+            self.assertIn('fightId', response_1['data'])
+
+            current_fight = response_1['data']['fightId']
+            self.assertIsInstance(current_fight, int)
+
+            response_2 = await com2.receive_json_from()
+
+            self.assertIn('action', response_2)
+            self.assertEqual(response_2['action'], ToClientActions.FIGHT_MATCHMAKING)
+            self.assertIn('data', response_2)
+            self.assertIn('fightId', response_2['data'])
+            self.assertEqual(response_2['data']['fightId'], response_1['data']['fightId'])
+            self.assertIn('challengerName', response_2['data'])
+            self.assertIn('challengerLevel', response_2['data'])
+            self.assertEqual(response_2['data']['challengerName'], self.player.player_name)
+            self.assertEqual(response_2['data']['challengerLevel'], self.player.player_level)
+    
+        f = await Fight.objects.filter(
+            id=current_fight,
+            player=self.player,
+            opponent=self.player_2
+        ).afirst()
+        self.assertIsNotNone(f)
+
+        #COM1 created and tries do accept the matchmaking
+        await com1.send_json_to({'action': ToServerActions.ACCEPT_MATCHMAKING})
+
+        self.assertTrue(await com1.receive_nothing())
+        self.assertTrue(await com2.receive_nothing())
+
+        await com1.disconnect()
+        await com2.disconnect()
+
+    @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
     async def test_matchmaking_found_match_1_vs_1_attack_pvp(self, mock_matchmaking_cleanup_task_run):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
@@ -838,3 +884,65 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
 
         await com1.disconnect()
         await com2.disconnect()
+
+    @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
+    async def test_matchmaking_found_match_1_vs_1_disconnecting_before_accept(self, mock_matchmaking_cleanup_task_run):
+        com1 = await self._connect_to_websocket_p1()
+        com2 = await self._connect_to_websocket_p2()
+       
+        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+            await com1.send_json_to({'action': ToServerActions.MOVE})
+            response_1 = await com1.receive_json_from()
+
+            mock_matchmaking_cleanup_task_run.assert_called_once()
+
+            self.assertIn('action', response_1)
+            self.assertEqual(response_1['action'], ToClientActions.FIGHT_MATCHMAKING_START)
+            self.assertIn('fightId', response_1['data'])
+
+            current_fight = response_1['data']['fightId']
+            self.assertIsInstance(current_fight, int)
+
+            response_2 = await com2.receive_json_from()
+
+            self.assertIn('action', response_2)
+            self.assertEqual(response_2['action'], ToClientActions.FIGHT_MATCHMAKING)
+            self.assertIn('data', response_2)
+            self.assertIn('fightId', response_2['data'])
+            self.assertEqual(response_2['data']['fightId'], response_1['data']['fightId'])
+            self.assertIn('challengerName', response_2['data'])
+            self.assertIn('challengerLevel', response_2['data'])
+            self.assertEqual(response_2['data']['challengerName'], self.player.player_name)
+            self.assertEqual(response_2['data']['challengerLevel'], self.player.player_level)
+    
+        f = await Fight.objects.filter(
+            id=current_fight,
+            player=self.player,
+            opponent=self.player_2
+        ).afirst()
+        self.assertIsNotNone(f)
+
+        await com1.disconnect()
+
+        response_2 = await com2.receive_json_from()
+        self.assertIn('action', response_2)
+        self.assertEqual(response_2['action'], ToClientActions.FIGHT_FINISH)
+        self.assertIn('data', response_2)
+        self.assertIn('isFightOver', response_2['data'])
+        self.assertTrue(response_2['data']['isFightOver'])
+
+        f = await Fight.objects.filter(
+            id=current_fight,
+            player=self.player,
+            opponent=self.player_2
+        ).afirst()
+        self.assertIsNone(f)
+
+        await self.player.arefresh_from_db()
+        await self.player_2.arefresh_from_db()
+
+        self.assertEqual(self.player.player_status, Player.PlayerStatus.IDLE)
+        self.assertEqual(self.player_2.player_status, Player.PlayerStatus.IDLE)
+
+        await com2.disconnect()
+

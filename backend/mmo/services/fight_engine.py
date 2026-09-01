@@ -191,36 +191,70 @@ class FightEngine:
         with transaction.atomic():
             is_opponent_locked: Player | None = None
             is_creature_locked: WorldCreature | None = None
+            players_id: list = []
 
             if opponent_id:
-                is_opponent_locked = Player.objects.select_for_update(
+                # Locking creator and opponent for fight creation
+                players_id = sorted([player_id, opponent_id])
+                players = Player.objects.select_for_update(
                     skip_locked=True
-                ).filter(id=opponent_id).first()
+                ).exclude(
+                    player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
+                ).filter(id__in=players_id).all()
+                
+                if len(players) != 2:
+                    return None
 
-                if is_opponent_locked is None:
-                    logger.error("Opponent %s is not locked", opponent_id)
-                    return
-            else:            
+                if Fight.objects.filter(
+                    Q(player_id__in=players_id) |
+                    Q(opponent_id__in=players_id)
+                ).exists():
+                    return None
+
+                is_opponent_locked = next((p for p in players if p.id == opponent_id))
+            else:
+                # Locking player to avoid double MOVE
+                is_player_locked = Player.objects.select_for_update(
+                    skip_locked=True
+                ).exclude(
+                    player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
+                ).filter(id=player_id).first()
+                
+                if is_player_locked is None:
+                    logger.error("Player %s is not locked", player_id)
+                    return None
+
+                # Locking creature for fight creation
                 is_creature_locked = WorldCreature.objects.select_for_update(
                     skip_locked=True
                 ).filter(id=creature_id).first()
 
                 if is_creature_locked is None:
                     logger.error("Creature %s is not locked", creature_id)
-                    return
+                    return None
+                
+                if Fight.objects.filter(
+                    Q(player_id=player_id) |
+                    Q(opponent_id=player_id) |
+                    Q(creature_id=creature_id)
+                ).exists():
+                    return None
 
             if is_opponent_locked:
                 Player.objects.filter(
-                    id__in=[player_id, opponent_id]
+                    id__in=players_id
                 ).update(
                     player_status=Player.PlayerStatus.FIGHTING
                 )
-            else:
+            elif is_creature_locked:
                 Player.objects.filter(
                     id=player_id
                 ).update(
                     player_status=Player.PlayerStatus.FIGHTING
                 )
+            else:
+                logger.error("No opponent or creature found for player %s", player_id)
+                return None
             
             return Fight.objects.create(
                 player_id=player_id,
@@ -331,8 +365,7 @@ class FightEngine:
 
         p_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=p.user_id))
         o_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=o.user_id))
-        if p_channel and o_channel and \
-            fs and fs_o:
+        if p_channel and fs:
             async_to_sync(cl.send)(
                 p_channel,
                 {
@@ -342,6 +375,7 @@ class FightEngine:
                     "itemsDrop": items_dict
                 }
             )
+        if o_channel and fs_o:
             async_to_sync(cl.send)(
                 o_channel,
                 {
@@ -410,7 +444,10 @@ class FightEngine:
                 player_name=o.player_name,
                 opponent_name=p.player_name
             )
-            cls.unlock_finish_fight_pvp(fight_id, player_id, fs, fs_o)
+            
+            if cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
+                cls.unlock_finish_fight_pvp(fight_id, player_id, fs, fs_o)
+            
             return
 
         fs = FightStatus(
@@ -419,7 +456,8 @@ class FightEngine:
             player_life=p.player_life
         )
 
-        cls.unlock_finish_fight_pve(fight_id, fs)
+        if cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
+            cls.unlock_finish_fight_pve(fight_id, fs)
 
     @classmethod
     def attack_monster(cls, fight_id: int) -> FightStatus | None:
@@ -529,7 +567,9 @@ class FightEngine:
                 'player',
                 'opponent',
                 'player__player_equipped_armour__item',
-                'opponent__player_equipped_armour__item'
+                'player__player_equipped_weapon__item',
+                'opponent__player_equipped_armour__item',
+                'opponent__player_equipped_weapon__item'
             ).filter(
                 id=fight_id
             ).first()

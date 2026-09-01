@@ -24,7 +24,7 @@ class WorldEngine:
             logger.warning("Player %s is in a fight", player_id)
             return None
         
-        if p.player_level > world.world_max_level:
+        if p.player_level > world.world_max_level or p.player_level < world.world_min_level:
             return None
 
         Player.objects.filter(

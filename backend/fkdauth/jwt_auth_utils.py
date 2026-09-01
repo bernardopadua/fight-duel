@@ -1,6 +1,12 @@
 from rest_framework.authentication import get_authorization_header
 from rest_framework.request import Request
+
 from django.http import HttpRequest
+from django.contrib.auth.models import User
+from django.conf import settings
+from django.core.cache import cache
+
+from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
 
 import time, base64, json, hmac, hashlib, uuid
 from typing import Any
@@ -67,6 +73,18 @@ def decode_token(token: str, secret_key: str) -> dict[str, Any]:
         raise JWTExpiredError("JWT token expired")
 
     return payload
+
+def resolve_user_and_validate_from_token(token: str) -> User | None:
+    payload = decode_token(token, settings.SECRET_KEY)
+
+    user_id = payload.get('userId')
+    token_iat = payload.get('iat')
+
+    blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
+
+    if blocked_until and blocked_until > token_iat:
+        raise JWTError('Token revoked')
+    return User.objects.filter(id=user_id).first()
 
 def get_token_from_request(request: Request | HttpRequest | None) -> str | None:
     if not request:

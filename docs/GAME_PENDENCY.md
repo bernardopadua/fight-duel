@@ -1,2 +1,3 @@
 - How much time do the player waits till revives ?
   - When decided, implement a task to run along with clean up fight in the container start
+- 1.5 - 2 seconds is still a short period of cooldown attack, consider increasing that.

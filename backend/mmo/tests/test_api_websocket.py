@@ -22,6 +22,8 @@ from mmo.constants import USER_CHANNEL_WS_LOGGED
 
 from fkdauth.jwt_auth_utils import create_token
 
+import threading
+
 class MMOPlayerTests(APITestCase):
     
     def setUp(self) -> None:
@@ -119,6 +121,17 @@ class MMOPlayerFightTests(TestCase):
             player_world=self.world
         )
 
+        self.user_2 = User.objects.create_user(username='test_2', email='test_2@test.com', password='123456')
+        self.player_life_2 = 100
+        self.player_2 = Player.objects.create(
+            player_name='TestPlayer_2',
+            player_level=10,
+            player_power=100,
+            player_life=self.player_life_2,
+            user=self.user_2,
+            player_world=self.world
+        )
+
         self.creature_name = 'TestCreature'
         self.creature_level = 1
         self.creature_life = 100
@@ -212,7 +225,7 @@ class MMOPlayerFightTests(TestCase):
         fight = Fight.objects.filter(id=fs.fight_id)
         self.assertEqual(fight.count(), 1)
         self.assertEqual(fs.fight_id, fight.first().id)
-        
+
     def test_fight_attack_monster(self):
         fs = self._should_fight()
         

@@ -71,9 +71,11 @@ class MatchmakingEngine:
         return True
 
     @staticmethod
-    def inform_group_matchmaking_accepted(fight_id: int) -> bool:
+    def inform_group_matchmaking_accepted(fight_id: int, player_id: int) -> bool:
         f = Fight.objects.filter(
             id=fight_id
+        ).exclude(
+            player_id=player_id # the creator of fight can't accept matchmaking
         ).exists()
         if not f:
             return False
