@@ -35,18 +35,16 @@ class MatchmakingEngine:
         # CACHE
         cache.set(
             OPPONENTS_IN_FIGHT_CACHE.format(fight_id=fight_id),
-            {
-                "opponents":[
-                    {
-                        "playerName": p.player_name,
-                        "playerLevel": p.player_level,
-                    },
-                    {
-                        "playerName": o.player_name,
-                        "playerLevel": o.player_level,
-                    }
-                ]
-            },
+            [
+                {
+                    "playerName": p.player_name,
+                    "playerLevel": p.player_level,
+                },
+                {
+                    "playerName": o.player_name,
+                    "playerLevel": o.player_level,
+                }
+            ],
             timeout=120
         )
 

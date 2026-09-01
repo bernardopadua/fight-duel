@@ -151,6 +151,7 @@ docker compose exec fduel python manage.py test
 - [x] Extend recover_status for players in fight too.
   - Write on DB the max life of player at each level_up, so we can filter who needs to recover.
 - [ ] Direct Player vs. Player (PvP) duels
+- [ ] Instrument codebase with APM
 - [ ] Add support for fights with multiple players against a BOSS creature.
 - [ ] Destroyed items (consumables, equipment, etc)
 - [ ] Expanded Phaser combat arena and visual animations

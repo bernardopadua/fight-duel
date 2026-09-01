@@ -87,7 +87,6 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, code: int) -> None:
         if self.fight_id:
             await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=self.pvp)
-            await self.fight_finish_group({"fightId": self.fight_id})
 
         #if player is in a world, leave it
         await sync_to_async(WorldEngine.leave_world)(self.player_id)
@@ -333,6 +332,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     async def fight_matchmaking_accepted(self, event: dict) -> None:
         data = event["data"]
         fight_id = data.get("fightId")
+        opponents = data.get("opponents")
         if not fight_id:
             logger.error("No fight id for user %s", self.user.id)
             return
@@ -345,7 +345,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         await self.send(json.dumps({
             "action": ToClientActions.FIGHT,
             "data": {
-                "fightId": fight_id
+                "fightId": fight_id,
+                "opponents": opponents
             }
         }))
 

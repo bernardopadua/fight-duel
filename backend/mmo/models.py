@@ -55,7 +55,7 @@ class Item(models.Model):
             "itemWeight": self.item_weight,
             "itemType": self.item_type,
             "itemConsumableType": self.item_consumable_type,
-            "itemCreatedDate": str(self.item_created_date),
+            #"itemCreatedDate": str(self.item_created_date), Well, commenting for now.. hehe
         }
 
 class Player(models.Model):
