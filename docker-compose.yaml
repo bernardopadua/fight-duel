@@ -27,6 +27,17 @@ services:
     volumes:
       - ./backend/.redis:/data
 
+  jaeger:
+    image: jaegertracing/jaeger:2.20.0
+    container_name: fduel_jaeger
+    restart: no
+    networks:
+      - fduel
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+
   fduel:
     build: ./backend
     container_name: fduel_backend
@@ -37,11 +48,13 @@ services:
       - .env.docker
     environment:
       - FDUEL_MIGRATE=true
+      - OTEL_SERVICE_NAME=fduel-web
     ports:
       - "8000:8000"
     depends_on:
       - postgres
       - redis
+    command: opentelemetry-instrument daphne -b 0.0.0.0 -p 8000 core.asgi:application
 
   celery_worker:
     build: ./backend
@@ -49,12 +62,14 @@ services:
     restart: no
     networks:
       - fduel
+    environment:
+      - OTEL_SERVICE_NAME=fduel-worker
     env_file:
       - .env.docker
     depends_on:
       - postgres
       - redis
-    command: celery -A core.celery worker --loglevel=info
+    command: opentelemetry-instrument celery -A core.celery worker --loglevel=info
 
   celery_beat:
     build: ./backend
@@ -62,12 +77,14 @@ services:
     restart: no
     networks:
       - fduel
+    environment:
+      - OTEL_SERVICE_NAME=fduel-beat
     env_file:
       - .env.docker
     depends_on:
       - postgres
       - redis
-    command: celery -A core.celery beat --loglevel=info
+    command: opentelemetry-instrument celery -A core.celery beat --loglevel=info
 
 networks:
   fduel:

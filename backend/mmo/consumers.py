@@ -14,9 +14,11 @@ from mmo.tasks.task_fight import monster_attack
 from mmo.constants import USER_CHANNEL_WS_LOGGED, FIGHT_GROUP
 
 from typing import override
+from opentelemetry import trace
 import json, logging
 
 logger = logging.getLogger("fight_duel_consumer")
+tracer = trace.get_tracer(__name__)
 
 class ToClientActions:
     ERROR = "error"
@@ -53,9 +55,51 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     
     @override
     async def connect(self) -> None:
+        with tracer.start_as_current_span('ws connect'):
+            await self._on_connect()
+
+    @override
+    async def disconnect(self, code: int) -> None:
+        with tracer.start_as_current_span('ws disconnect') as span:
+            span.set_attribute('ws.code', code)
+            await self._on_disconnect()
+
+    async def user_logout(self, event: dict) -> None:
+        await self.close(1000)
+
+    @override
+    async def receive(self, text_data=None, bytes_data=None) -> None:
+        if text_data is None:
+            return
+       
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            await self.send(json.dumps({
+                "action": ToClientActions.ERROR,
+                "data": "Invalid JSON"
+            }))
+            await self.close()
+            return
+
+        action = data.get('action')
+        with tracer.start_as_current_span(f'ws {action or 'unknown'}') as span:
+            span.set_attribute('ws.action', action or 'unknown')
+            if self.player_id:
+                span.set_attribute('player.id', self.player_id)
+            if self.fight_id:
+                span.set_attribute('fight.id', self.fight_id)
+            span.set_attribute('fight.matchmaking', self.matchmaking)
+            span.set_attribute('fight.pvp', self.pvp)
+
+            await self._on_action(data)
+
+    async def _on_connect(self):
         self.fight_id = None
         self.matchmaking = False
         self.pvp = False
+        self.player_id = 0
+        self.player_is_alive = False
 
         if not "user" in self.scope or self.scope["user"] is None:
             await self.close()
@@ -84,8 +128,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-    @override
-    async def disconnect(self, code: int) -> None:
+    async def _on_disconnect(self):
         if self.player_id and self.fight_id:
             is_pvp = self.matchmaking or self.pvp
             await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=is_pvp)
@@ -100,24 +143,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             if await cache.aget(key) == self.channel_name:
                 await cache.adelete(key)
 
-    async def user_logout(self, event: dict) -> None:
-        await self.close(1000)
-
-    @override
-    async def receive(self, text_data=None, bytes_data=None) -> None:
-        if text_data is None:
-            return
-       
-        try:
-            data = json.loads(text_data)
-        except json.JSONDecodeError:
-            await self.send(json.dumps({
-                "action": ToClientActions.ERROR,
-                "data": "Invalid JSON"
-            }))
-            await self.close()
-            return
-
+    async def _on_action(self, data: dict) -> None:
         if self.matchmaking and \
             data.get("action") != ToServerActions.ACCEPT_MATCHMAKING and \
             data.get("action") != ToServerActions.REJECT_MATCHMAKING \
@@ -248,7 +274,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
                 "action": ToClientActions.INVENTORY_UPDATE,
                 "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
             }))
-
+        
     async def schedule_monster_attack(self, fs: FightStart) -> None:
         if not self.fight_id:
             return
