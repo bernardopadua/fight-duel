@@ -188,6 +188,13 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+CELERY_IMPORTS = (
+    'mmo.tasks.task_world',
+    'mmo.tasks.task_fight',
+    'mmo.tasks.task_player',
+    'mmo.tasks.task_matchmaking',
+)
+
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 # Django Cache

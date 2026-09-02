@@ -8,8 +8,10 @@ WORKDIR /fduel-backend
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 COPY ./requirements.txt .
+COPY ./requirements-otel.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-otel.txt
 
 COPY . /fduel-backend
 
