@@ -6,10 +6,14 @@ from unittest.mock import patch, ANY
 
 from mmo.models import World, Player, WorldCreature, Item, Fight, PlayerInventory
 from mmo.services.fight_engine import FightEngine, FightStart
+from mmo.services.player_engine import PlayerEngine
 from mmo.tasks.task_fight import monster_attack
 from mmo.tasks.task_matchmaking import clean_up_matchmaking_fight
-from mmo.tasks.task_world import respawn_creatures, recover_player_status, tick, clean_orphan_items
-from mmo.tasks.task_player import apply_death_penalty_to_player, revive_dead_player
+from mmo.tasks.task_world import (
+    respawn_creatures, recover_player_status, 
+    tick, clean_orphan_items, revive_dead_players
+)
+from mmo.tasks.task_player import apply_death_penalty_to_player
 from mmo.constants import USER_CHANNEL_WS_LOGGED, MATCHMAKING_IN_FIGHT
 
 from django.utils import timezone
@@ -326,16 +330,16 @@ class MMOTasksTests(TestCase):
         self.assertIsNone(self.player.player_equipped_armour)
         self.assertIsNone(self.player.player_equipped_weapon)
 
-    def test_revive_dead_player(self):
-        self.player.player_status = Player.PlayerStatus.DEAD
-        self.player.save(update_fields=['player_status'])
+    def test_revive_dead_players(self):
+        with patch('mmo.services.player_engine.timezone.now', return_value=timezone.now() - timedelta(minutes=3)):
+            PlayerEngine.kill_player(self.player)
 
         cache.add(
             USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id),
             'channel_test',
             timeout=10
         )
-        revive_dead_player(self.player.id)
+        revive_dead_players()
 
         self.player.refresh_from_db()
         self.assertEqual(self.player.player_status, Player.PlayerStatus.IDLE)

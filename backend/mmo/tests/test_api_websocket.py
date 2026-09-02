@@ -13,6 +13,7 @@ from channels.testing import WebsocketCommunicator
 from core.asgi import application
 
 from mmo.consumers import ToClientActions, ToServerActions
+from mmo.services.drop_engine import DropEngine
 from mmo.services.fight_engine import FightEngine, FightStart
 from mmo.services.player_engine import PlayerEngine
 from mmo.services.world_engine import WorldEngine
@@ -83,6 +84,77 @@ class MMOPlayerTests(APITestCase):
         self.assertIn("playerName", response.json())
         self.assertEqual(response.json()['playerName'], 'TestPlayer')
         self.assertEqual(response.json()['playerLevel'], 10)
+
+    def test_get_player_with_equipped_items(self):
+        response = self.client.post(
+            '/api/mmo/create/player/', 
+            {'playerName': 'NewPlayer'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        player_id = response.json()['id']
+        self.assertIsNotNone(player_id)
+
+        itemd = DropEngine.create_drop_item(10, item_type=Item.ItemType.ARMOUR)
+        PlayerInventoryEngine.loot_items(player_id, [itemd.id])
+        PlayerInventoryEngine.use_item(player_id, itemd.id)
+        
+        response = self.client.get(
+            '/api/mmo/player/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("playerEquippedWeaponItem", response.json())
+        self.assertIn("playerEquippedArmourItem", response.json())
+        self.assertIsNotNone(response.json())
+        self.assertIsNotNone(response.json()['playerEquippedArmourItem'])
+        self.assertIsNone(response.json()['playerEquippedWeaponItem'])
+        self.assertIn('itemName', response.json()['playerEquippedArmourItem'])
+        self.assertIn('itemWeight', response.json()['playerEquippedArmourItem'])
+        self.assertIn('itemPower', response.json()['playerEquippedArmourItem'])
+
+class MMOWorldTests(TestCase):
+    def setUp(self) -> None:
+        cache.clear()
+
+        self.world = World.objects.create(
+            world_name='TestWorld',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
+        self.world_2 = World.objects.create(
+            world_name='TestWorld2',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
+
+        self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
+        self.token = create_token(self.user.id, settings.SECRET_KEY)
+        self.player_life = 100
+        self.player = Player.objects.create(
+            player_name='TestPlayer',
+            player_level=10,
+            player_power=100,
+            player_life=self.player_life,
+            user=self.user,
+            player_world=self.world
+        )
+
+    def test_get_worlds(self):
+        response = self.client.get(
+            '/api/mmo/worlds/',
+            HTTP_AUTHORIZATION=f'Bearer {self.token}',
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.json(), list)
+        self.assertEqual(len(response.json()), 2)
+        self.assertIn('worldName', response.json()[0])
+        self.assertIn('worldMinLevel', response.json()[0])
+        self.assertIn('worldMaxLevel', response.json()[0])
 
 @override_settings(
     CACHES={
@@ -267,8 +339,9 @@ class MMOPlayerFightTests(TestCase):
         mock_drop_items.return_value = ([self.item_armour], 150)
 
         #one hit kill
-        self.player.player_power = 99999
-        self.player.save(update_fields=['player_power'])
+        self.player.player_power = 999
+        self.player.player_stamina = 99999
+        self.player.save(update_fields=['player_power', 'player_stamina'])
 
         fst = FightEngine.attack_monster(fs.fight_id)
         self.assertIsNotNone(fst)
@@ -361,12 +434,14 @@ class MMOConsumerTests(TransactionTestCase):
         )
 
         self.player_power = 999
+        self.player_stamina = 9999
         self.player_life = 100
         self.player = Player.objects.create(
             player_name='TestPlayer',
             player_level=10,
             player_power=self.player_power,
             player_life=self.player_life,
+            player_stamina=self.player_stamina,
             user=self.user,
             player_world=self.world
         )
@@ -592,6 +667,31 @@ class MMOConsumerTests(TransactionTestCase):
         
         await self.player.arefresh_from_db()
         self.assertIsNone(self.player.player_world)
+
+    @patch('mmo.consumers.monster_attack.apply_async')
+    async def test_attack_no_stamina(self, mock_monster_attack):
+        self.player.player_power = 10
+        self.player.player_stamina = 1
+        await self.player.asave(update_fields=['player_power', 'player_stamina'])
+        
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        mock_monster_attack.assert_called_once()
+
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response)
+        self.assertIn('fightId', response['data'])
+        self.assertIsNotNone(response['data']['fightId'])
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        
+        await communicator.send_json_to({'action': ToServerActions.ATTACK})
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.disconnect()
 
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_attack_spam(self, mock_monster_attack):

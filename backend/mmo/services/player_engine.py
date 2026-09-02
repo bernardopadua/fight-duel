@@ -2,25 +2,28 @@ from asgiref.sync import async_to_sync
 
 from dataclasses import dataclass
 
+from django.utils import timezone
 from django.db.models import QuerySet, F
 from django.db.models.functions import Least
 from django.core.cache import cache
 
 from channels.layers import get_channel_layer
 
-
 from mmo.models import Player
 from mmo.services.constants import (
     PLAYER_BASE_LIFE, PLAYER_LIFE_LINEAR_POWER,
     PLAYER_TOTAL_STAMINA, PLAYER_LIFE_TOTAL_POWER_REGEN,
     LEVELUP_VARIATION_POWER, LEVELUP_MULTIPLIER_EXP,
-    LEVELUP_PLUS_PLAYERPOWER, LEVEL_MAX
+    LEVELUP_PLUS_PLAYERPOWER, LEVEL_MAX,
+    PLAYER_BASE_STAMINA_USAGE, STAMINA_USAGE_WEIGHT_VARIATION,
+    STAMINA_USAGE_POWER_VARIATION, PLAYER_STAMINA_LINEAR_POWER,
+    PLAYER_STAMINA_TOTAL_POWER_REGEN
 )
 from mmo.constants import (
     USER_CHANNEL_WS_LOGGED,
 )
 
-import logging
+import logging, time
 
 logger = logging.getLogger(__name__)
 
@@ -61,22 +64,50 @@ class PlayerEngine:
         return total_power
 
     @staticmethod
+    def get_player_total_equipped_items_weight(player: Player) -> int:
+        weapon = player.player_equipped_weapon.item if player.player_equipped_weapon else None
+        armour = player.player_equipped_armour.item if player.player_equipped_armour else None
+        wp = weapon.item_weight if weapon else 0
+        ap = armour.item_weight if armour else 0
+        total_equipped_items_weight = wp + ap
+
+        return total_equipped_items_weight
+
+    @staticmethod
     def get_player_defense_power(player: Player) -> int:
         armour = player.player_equipped_armour.item if player.player_equipped_armour else None
         return armour.item_power if armour else 0
     
     @classmethod
-    def get_player_calculated_life(cls, player: Player) -> int:
-        total_power = cls.get_player_total_power(player)
+    def get_player_calculated_life(cls, player: Player, *, total_power: int | None = None) -> int:
+        if not total_power:
+            total_power = cls.get_player_total_power(player)
         
         return int(PLAYER_BASE_LIFE + (total_power * PLAYER_LIFE_LINEAR_POWER))
 
-    @staticmethod
-    def get_player_calculated_stamina(player: Player) -> int:
-        if not player:
-            raise Exception("Player not found")
+    @classmethod
+    def get_player_calculated_stamina(cls, player: Player, *, total_power: int | None = None) -> int:
+        if not total_power:
+            total_power = cls.get_player_total_power(player)
 
-        return PLAYER_TOTAL_STAMINA
+        return int(PLAYER_TOTAL_STAMINA + (total_power * PLAYER_STAMINA_LINEAR_POWER))
+
+    @classmethod
+    def get_player_stamina_usage_fight(
+        cls, player: Player, 
+        *, total_power: int | None = None,
+        total_equipped_items_weight: int | None = None
+    ) -> int:
+        if not total_power:
+            total_power = cls.get_player_total_power(player)
+        
+        if not total_equipped_items_weight:
+            total_equipped_items_weight = cls.get_player_total_equipped_items_weight(player)
+
+        stamina_usage = PLAYER_BASE_STAMINA_USAGE + \
+            (total_equipped_items_weight * STAMINA_USAGE_WEIGHT_VARIATION) + \
+            (total_power * STAMINA_USAGE_POWER_VARIATION)
+        return int(stamina_usage)
 
     @staticmethod
     def recover_players_status(players: QuerySet[Player, Player]) -> None:
@@ -85,14 +116,15 @@ class PlayerEngine:
 
         for player in players:
             total_power = PlayerEngine.get_player_total_power(player)
-            percent_life_restore = int((total_power * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5)
+            percent_life_restore = (total_power * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5
+            percent_stamina_restore = (total_power * PLAYER_STAMINA_TOTAL_POWER_REGEN) + 10
 
             Player.objects.filter(
                 id=player.id
             ).exclude(
                 player_status=Player.PlayerStatus.DEAD
             ).update(
-                player_stamina=Least(F('player_stamina') + (F('player_max_stamina') * (total_power / 100)), F('player_max_stamina')),
+                player_stamina=Least(F('player_stamina') + percent_stamina_restore, F('player_max_stamina')),
                 player_life=Least(F('player_life') + percent_life_restore, F('player_max_life'))
             )
 
@@ -130,6 +162,12 @@ class PlayerEngine:
             player.save(update_fields=['player_exp'])
 
     @staticmethod
+    def kill_player(player: Player) -> None:
+        player.player_status = Player.PlayerStatus.DEAD
+        player.player_last_death_date = timezone.now()
+        player.save(update_fields=['player_status', 'player_last_death_date'])
+
+    @staticmethod
     def player_dead_penalty(player: Player | None) -> None:
         if not player:
             logger.warning("Player not found")
@@ -146,16 +184,23 @@ class PlayerEngine:
             player.player_equipped_weapon = None
 
         player.player_exp = 0
-        player.save(update_fields=["player_exp"])
+        player.player_last_death_date = timezone.now()
+        player.save(update_fields=['player_exp', 'player_last_death_date'])
+
+    @staticmethod
+    def revive_dead_players(players: QuerySet[Player]) -> None:
+        for player in players:
+            PlayerEngine.revive_dead_player(player)
 
     @staticmethod
     def revive_dead_player(player: Player | None) -> None:
         if not player:
-            logger.warning("Player not found")
+            logger.warning('Player not found')
             return
 
         player.player_status = Player.PlayerStatus.IDLE
-        player.save(update_fields=["player_status"])
+        player.player_last_death_date = None
+        player.save(update_fields=['player_status', 'player_last_death_date'])
 
         player_channel = cache.get(
             USER_CHANNEL_WS_LOGGED.format(user_id=player.user_id)
@@ -163,10 +208,11 @@ class PlayerEngine:
 
         cl = get_channel_layer()
         if cl is None:
-            logger.error("Channel layer not found")
+            logger.error('Channel layer not found')
             return
 
-        async_to_sync(cl.send)(player_channel, {
-            "type": "player.revive.notify",
-            "data": {}
-        })
+        if player_channel:
+            async_to_sync(cl.send)(player_channel, {
+                "type": "player.revive.notify",
+                "data": {}
+            })

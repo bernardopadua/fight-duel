@@ -36,6 +36,8 @@ class ToClientActions:
     FIGHT_FINISH = "fight.finish"
     INVENTORY_UPDATE = "inventory.update"
 
+    PLAYER_REVIVE = "player.revive"
+
 class ToServerActions:
     ENTER_WORLD = "enter.world"
     LEAVE_WORLD = "leave.world"
@@ -398,3 +400,6 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
     async def player_revive_notify(self, event: dict) -> None:
         self.player_is_alive = True
+        await self.send(json.dumps({
+            "action": ToClientActions.PLAYER_REVIVE
+        }))

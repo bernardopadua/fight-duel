@@ -4,7 +4,8 @@ from channels.layers import get_channel_layer
 
 from django.db import transaction
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import Q, F
+from django.db.models.functions import Coalesce
 
 from mmo.models import Player, Fight, WorldCreature
 from mmo.services.player_engine import PlayerEngine
@@ -35,7 +36,9 @@ class FightPvPStatus:
     is_opponent_alive: bool = True
     is_fight_over: bool = False
     player_life: int | None = None
+    player_stamina: int | None = None
     opponent_life: int | None = None
+    opponent_stamina: int | None = None
     player_level: int = 1
     opponent_level: int = 1
     player_name: str = ''
@@ -48,6 +51,8 @@ class FightPvPStatus:
             "isFightOver": self.is_fight_over,
             "playerLife": self.player_life,
             "opponentLife": self.opponent_life,
+            "playerStamina": self.player_stamina,
+            "opponentStamina": self.opponent_stamina,
             "playerLevel": self.player_level,
             "opponentLevel": self.opponent_level,
             "playerName": self.player_name,
@@ -65,6 +70,7 @@ class FightStatus:
     is_player_attacking: float = 0.0
     is_creature_attacking: float = 0.0
     player_life: int | None = None
+    player_stamina: int | None = None
     creature_life: int | None = None
     creature_level: int = 1
     creature_chance_drop: int = 0
@@ -77,6 +83,7 @@ class FightStatus:
             "isPlayerAttacking": self.is_player_attacking,
             "isCreatureAttacking": self.is_creature_attacking,
             "playerLife": self.player_life,
+            "playerStamina": self.player_stamina,
             "creatureLife": self.creature_life,
             "creatureLevel": self.creature_level,
             "creatureChanceDrop": self.creature_chance_drop
@@ -462,13 +469,15 @@ class FightEngine:
     @classmethod
     def attack_monster(cls, fight_id: int) -> FightStatus | None:
         with transaction.atomic():
+            attack_applied = False
             fight = Fight.objects.select_for_update(of=['self']).select_related(
                 'creature',
                 'player',
                 'player__player_equipped_weapon__item',
                 'player__player_equipped_armour__item'
             ).filter(
-                id=fight_id
+                id=fight_id,
+                player__player_stamina__gt=0
             ).first()
 
             if fight is None:
@@ -477,31 +486,46 @@ class FightEngine:
             c: WorldCreature = fight.creature
             p: Player = fight.player
 
-            if not (player_attack_time := cls.set_player_attacking(p)):
-                return
-
             fs = FightStatus()
-            fs.is_player_attacking = player_attack_time
+            fs.creature_chance_drop = c.creature_chance_drop
+            fs.creature_level = c.creature_level
+            fs.player_life = p.player_life
+            fs.player_stamina = p.player_stamina
 
             total_power = PlayerEngine.get_player_total_power(p)
             power_attack = randint(
                 int(total_power * PLAYER_POWER_ATTACK_VARIATION), 
                 total_power
             )
-            c.creature_life = (c.creature_life - power_attack) if (c.creature_life - power_attack) > 0 else 0
-            fs.creature_life = c.creature_life
-            fs.player_life = p.player_life
+            stamina_usage = PlayerEngine.get_player_stamina_usage_fight(
+                p, 
+                total_power=total_power
+            )
+
+            if p.player_stamina >= stamina_usage:
+                attack_applied = True
+
+                c.creature_life = max(0, c.creature_life - power_attack)
+                p.player_stamina = max(0, p.player_stamina - stamina_usage)
+
+                fs.player_stamina = p.player_stamina
+                fs.creature_life = c.creature_life
 
             unlock_fight = False
+            if attack_applied:
+                if not (player_attack_time := cls.set_player_attacking(p)):
+                    return
+                fs.is_player_attacking = player_attack_time
+                
+                if c.creature_life <= 0:
+                    unlock_fight = True
+                    fs.is_monster_alive = False
+                else:
+                    c.save(update_fields=["creature_life"])
 
-            if c.creature_life <= 0:
-                fs.creature_chance_drop = c.creature_chance_drop
-                fs.creature_level = c.creature_level
-                unlock_fight = True
-                fs.is_monster_alive = False
+                p.save(update_fields=["player_stamina"])
             else:
-                c.save(update_fields=["creature_life"])
-
+                return None
         if unlock_fight and \
             cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
         :
@@ -563,6 +587,7 @@ class FightEngine:
     @classmethod
     def attack_pvp_player(cls, fight_id: int, player_id: int) -> tuple[FightPvPStatusPlayer | None, FightPvPStatusOpponent | None]:
         with transaction.atomic():
+            attack_applied = False
             fight = Fight.objects.select_for_update(of=['self']).select_related(
                 'player',
                 'opponent',
@@ -585,7 +610,10 @@ class FightEngine:
             fs.is_player_alive = p.player_status != Player.PlayerStatus.DEAD
             fs.is_opponent_alive = o.player_status != Player.PlayerStatus.DEAD
             fs.is_fight_over = False
+            fs.player_life = p.player_life
             fs.opponent_life = o.player_life
+            fs.player_stamina = p.player_stamina
+            fs.opponent_stamina = o.player_stamina
             fs.opponent_level = o.player_level
             fs.player_name = p.player_name
             fs.opponent_name = o.player_name
@@ -598,39 +626,55 @@ class FightEngine:
                 is_fight_over=False,
                 player_life=o.player_life,
                 opponent_life=p.player_life,
+                player_stamina=o.player_stamina,
+                opponent_stamina=p.player_stamina,
                 player_level=o.player_level,
                 opponent_level=p.player_level,
                 player_name=o.player_name,
                 opponent_name=p.player_name
             )
 
-            if not cls.set_player_attacking(p):
-                return None, None
-
             power_attack = PlayerEngine.get_player_total_power(p)
             defense_power = PlayerEngine.get_player_defense_power(o)
+            stamina_usage = PlayerEngine.get_player_stamina_usage_fight(p, total_power=power_attack)
             total_damage = max(0, (power_attack - defense_power))
-            o.player_life = max(0, (o.player_life - total_damage))
-
-            fs.player_life = p.player_life
-            fs.player_level = p.player_level
-            fs.opponent_life = o.player_life
             
-            fs_o.player_life = o.player_life
+            if p.player_stamina >= stamina_usage:
+                attack_applied = True
+                o.player_life = max(0, (o.player_life - total_damage))
+                p.player_stamina = max(0, (p.player_stamina - stamina_usage))
+
+                fs.player_life = p.player_life
+                fs.opponent_life = o.player_life
+                fs.player_stamina = p.player_stamina
+                fs.opponent_stamina = o.player_stamina
+                fs.player_level = p.player_level
+
+                fs_o.player_life = o.player_life
+                fs_o.opponent_life = p.player_life
+                fs_o.player_stamina = o.player_stamina
+                fs_o.opponent_stamina = p.player_stamina
+
+                if not cls.set_player_attacking(p):
+                    return None, None
 
             unlock_fight = False
 
-            if o.player_life <= 0:
-                o.player_status = Player.PlayerStatus.DEAD
-                unlock_fight = True
-                fs.is_opponent_alive = False
-                
-                fs_o.is_player_alive = False
-                fs_o.is_opponent_alive = True
+            if attack_applied:
+                if o.player_life <= 0:
+                    o.player_status = Player.PlayerStatus.DEAD
+                    unlock_fight = True
+                    fs.is_opponent_alive = False
+                    
+                    fs_o.is_player_alive = False
+                    fs_o.is_opponent_alive = True
 
-                apply_death_penalty_to_player.delay(o.id)
-            
-            o.save(update_fields=["player_status", "player_life"])
+                    apply_death_penalty_to_player.delay(o.id)
+                
+                o.save(update_fields=["player_status", "player_life"])
+                p.save(update_fields=["player_stamina"])
+            else:
+                return None, None
 
         if unlock_fight and cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
             fs.is_fight_over = True

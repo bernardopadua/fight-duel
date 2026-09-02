@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from asgiref.sync import async_to_sync
 
 from django.conf import settings
@@ -67,6 +69,22 @@ class LoginView(APIView):
             )
 
             return response
+
+class RefreshJWTView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request) -> Response:
+        
+        exp = get_expiration_from_request(request)
+        time_to_exp = max(exp - int(time.time()), 0) 
+        if time_to_exp <= timedelta(minutes=2).seconds:
+            token = create_token(request.user.id, settings.SECRET_KEY)
+            response = Response({'token': token}, status=status.HTTP_200_OK)
+            response.set_cookie('Authorization-JWT', token, httponly=True, samesite='Lax')
+            return response
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class HealthCheck(APIView):
     

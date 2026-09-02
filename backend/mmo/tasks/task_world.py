@@ -6,7 +6,10 @@ from django.utils import timezone
 from mmo.models import World, WorldCreature, Player, Item
 from mmo.data.monster_names import MONSTER_NAMES
 from mmo.services.player_engine import PlayerEngine
-from mmo.services.constants import MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE
+from mmo.services.constants import (
+    MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE,
+    PLAYER_TIME_DEATH_COOLDOWN
+)
 
 from datetime import timedelta
 import random
@@ -51,6 +54,14 @@ def recover_player_status() -> None:
 
     if len(players) > 0:
         PlayerEngine.recover_players_status(players)
+
+@shared_task
+def revive_dead_players() -> None:
+    players = Player.objects.filter(
+        player_status=Player.PlayerStatus.DEAD,
+        player_last_death_date__lte=(timezone.now() - timedelta(seconds=PLAYER_TIME_DEATH_COOLDOWN))
+    ).all()
+    PlayerEngine.revive_dead_players(players)
 
 @shared_task
 def tick() -> None:

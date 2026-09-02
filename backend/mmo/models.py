@@ -79,6 +79,7 @@ class Player(models.Model):
     player_max_weight = models.IntegerField(default=100)
     player_currency = models.IntegerField(default=0)
     player_world = models.ForeignKey('World', on_delete=models.SET_NULL, null=True, blank=True, related_name='players')
+    player_last_death_date = models.DateTimeField(null=True, blank=True)
 
 class PlayerInventory(models.Model):
     item = models.ForeignKey('Item', on_delete=models.CASCADE)

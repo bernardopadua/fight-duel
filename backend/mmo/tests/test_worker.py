@@ -12,10 +12,13 @@ from core.celery import app
 
 from mmo.models import Item, Player, World, WorldCreature, Fight, PlayerInventory
 from mmo.services.fight_engine import FightEngine
-from mmo.tasks.task_world import clean_orphan_items, respawn_creatures, recover_player_status
+from mmo.tasks.task_world import (
+    clean_orphan_items, respawn_creatures, recover_player_status,
+    revive_dead_players
+)
 from mmo.tasks.task_fight import monster_attack
 from mmo.tasks.task_matchmaking import clean_up_matchmaking_fight
-from mmo.tasks.task_player import apply_death_penalty_to_player, revive_dead_player
+from mmo.tasks.task_player import apply_death_penalty_to_player
 from mmo.constants import USER_CHANNEL_WS_LOGGED, MATCHMAKING_IN_FIGHT
 
 from datetime import timedelta
@@ -271,7 +274,7 @@ class MMOCeleryWorkerTests(TransactionTestCase):
             'channel_test',
             timeout=10
         )
-        async_result = revive_dead_player.delay(self.player.id)
+        async_result = revive_dead_players.delay()
         async_result.get(timeout=5)
 
         self.player.refresh_from_db()
