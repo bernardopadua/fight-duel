@@ -335,6 +335,8 @@ class FightEngine:
             Unlocks the fight and updates the player status.
             Unlocks the fight after the fight finishes, when the player flees, when the player rejects.
             It also runs on timeout fights where neither player accepted nor rejected.
+            When fs and fs_o are None, it means the fight timed out, aborted or rejected.
+            When fight times out, player_id is the original player who created the fight.
             Args:
                 fight_id (int): Fight id
                 player_id (int): Player id (the caller, attacker, owner of the action)

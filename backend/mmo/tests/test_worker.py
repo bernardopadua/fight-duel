@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
 from asgiref.sync import sync_to_async
+from celery import Celery
 from celery.contrib.testing.worker import start_worker
+from celery.contrib.testing.tasks import ping
 
 from core.asgi import application
 from channels.testing import WebsocketCommunicator
@@ -32,31 +34,49 @@ from mmo.constants import USER_CHANNEL_WS_LOGGED, MATCHMAKING_IN_FIGHT
 
 from datetime import timedelta
 
-@override_settings(
-    CACHES={
-        "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "mmo-tasks-tests"
-        }
-    }
+# This is necessary due to split-config by celery testing executing in two threads
+# one running on main thread and one running on worker thread.
+# the original config was splitting the cache in db0 and db15 returning timeout
+# since no result in db0 was found (results were in db15).
+CELERY_TEST_URL = CELERY_REDIS_HOST_DB.format(db='15')
+test_celery_app = Celery('fight_duel_tests')
+test_celery_app.conf.update(
+    broker_url=CELERY_TEST_URL,
+    result_backend=CELERY_TEST_URL,
+    accept_content=['json'],
+    task_serializer='json',
+    result_serializer='json',
+    broker_connection_retry_on_startup=True,
 )
-class MMOCeleryWorkerTests(TransactionTestCase):
+
+class EmbeddedCeleryWorkerMixin:
+    """Runs the test class against a real embedded worker on the isolated ``test_celery_app``."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        app.conf.update(
-            result_backend=CELERY_REDIS_HOST_DB.format(db='15'),
-            broker_url=CELERY_REDIS_HOST_DB.format(db='15')
+        cls.worker = start_worker(
+            test_celery_app, perform_ping_check=True, ping_task_timeout=30
         )
-        cls.worker = start_worker(app, perform_ping_check=False)
         cls.worker.__enter__()
 
-        
     @classmethod
     def tearDownClass(cls):
         cls.worker.__exit__(None, None, None)
+        app.set_current()
+        app.set_default()
         super().tearDownClass()
+
+
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "game-worker-tests"
+        }
+    }
+)
+class MMOCeleryWorkerTests(EmbeddedCeleryWorkerMixin, TransactionTestCase):
     
     def setUp(self) -> None:
         cache.clear()
@@ -294,25 +314,11 @@ class MMOCeleryWorkerTests(TransactionTestCase):
     CACHES={
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "mmo-tasks-tests"
+            "LOCATION": "game-worker-consumer-tests"
         }
     }
 )
-class MMOCeleryWorkerWebconsumerTests(TransactionTestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        app.conf.update(
-            result_backend=CELERY_REDIS_HOST_DB.format(db='15'),
-            broker_url=CELERY_REDIS_HOST_DB.format(db='15')
-        )
-        cls.worker = start_worker(app, perform_ping_check=False)
-        cls.worker.__enter__()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.worker.__exit__(None, None, None)
-        super().tearDownClass()
+class MMOCeleryWorkerWebconsumerTests(EmbeddedCeleryWorkerMixin, TransactionTestCase):
 
     def setUp(self) -> None:
         cache.clear()
@@ -427,7 +433,7 @@ class MMOCeleryWorkerWebconsumerTests(TransactionTestCase):
 
         communicator = await self._connect_to_websocket()
 
-        async_result = recover_player_status.delay()
+        async_result = await sync_to_async(recover_player_status.delay)()
         await sync_to_async(async_result.get)(timeout=5)
 
         response = await communicator.receive_json_from()
