@@ -42,7 +42,7 @@ def sign_token(encoded_header: str, encoded_payload: str, secret_key: str) -> by
 def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str:
     payload = {
         "userId": user_id,
-        "exp": int(time.time()) + time_expires,
+        "exp": time.time() + time_expires,
         "iat": time.time(),
         "jti": str(uuid.uuid4())
     }
@@ -79,6 +79,9 @@ def resolve_user_and_validate_from_token(token: str) -> User | None:
 
     user_id = payload.get('userId')
     token_iat = payload.get('iat')
+
+    if not token_iat:
+        raise JWTError('Invalid JWT payload')
 
     blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
 

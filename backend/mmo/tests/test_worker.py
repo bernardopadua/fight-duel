@@ -191,7 +191,7 @@ class MMOCeleryWorkerTests(TransactionTestCase):
 
     def test_clean_matchmaking_fight_timeout(self):
         with (
-            patch('mmo.services.fight_engine.random.randint', return_value=1)
+            patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1)
         ):
             cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id), 'test_channel', timeout=10)
             cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user_2.id), 'test_channel', timeout=10)
@@ -214,7 +214,7 @@ class MMOCeleryWorkerTests(TransactionTestCase):
 
     def test_clean_matchmaking_fight_in_fight(self):
         with (
-            patch('mmo.services.fight_engine.random.randint', return_value=1)
+            patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1)
         ):
             cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id), 'test_channel', timeout=10)
             cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user_2.id), 'test_channel', timeout=10)

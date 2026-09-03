@@ -4,8 +4,7 @@ from channels.layers import get_channel_layer
 
 from django.db import transaction
 from django.core.cache import cache
-from django.db.models import Q, F
-from django.db.models.functions import Coalesce
+from django.db.models import Q
 
 from mmo.models import Player, Fight, WorldCreature
 from mmo.services.player_engine import PlayerEngine
@@ -107,6 +106,10 @@ class FightStart:
 
 class FightEngine:
 
+    @staticmethod
+    def calculate_chance_matchmaking(player: Player) -> int:
+        return random.randint(1, 100)
+
     @classmethod
     def should_fight(cls, player_id: int) -> FightStart | None:
         p = Player.objects.filter(
@@ -125,7 +128,7 @@ class FightEngine:
         # Should I fight with a player?
         opponent: Player | None = None
         creature: WorldCreature | None = None
-        if random.randint(1, 100) <= 10:
+        if cls.calculate_chance_matchmaking(p) <= 10:
             opponent = Player.objects.filter(
                 player_world=p.player_world
             ).exclude(
@@ -372,6 +375,9 @@ class FightEngine:
 
         p_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=p.user_id))
         o_channel = cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=o.user_id))
+        if not p_channel or not o_channel:
+            logger.error('Fight %s p_channel or o_channel not found', fight_id)
+
         if p_channel and fs:
             async_to_sync(cl.send)(
                 p_channel,
@@ -389,6 +395,16 @@ class FightEngine:
                     "type": "fight.finish.group", 
                     "fightId": fight_id,
                     "fightStatus": fs_o.to_dict()
+                }
+            )
+        
+        #fight rejected None for fight status
+        if not fs and not fs_o:
+            async_to_sync(cl.group_send)(
+                FIGHT_GROUP.format(fight_id=fight_id),
+                {
+                    "type": "fight.finish.group", 
+                    "fightId": fight_id
                 }
             )
 

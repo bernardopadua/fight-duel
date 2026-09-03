@@ -126,13 +126,12 @@ class MatchmakingEngine:
 
     @staticmethod
     def matchmaking_in_fight(fight_id: int) -> bool:
-        # after accept the fight players have 2 minutes to start the fight
-        f = cache.set(
+        # after accept the fight players have 1 minute to start the fight
+        if not cache.add(
             MATCHMAKING_IN_FIGHT.format(fight_id=fight_id),
             True,
-            timeout=120
-        )
-        if not f:
+            timeout=80
+        ):
             return False
         return True
 

@@ -403,3 +403,6 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         await self.send(json.dumps({
             "action": ToClientActions.PLAYER_REVIVE
         }))
+
+    async def player_is_dead(self, event: dict) -> None:
+        self.player_is_alive = False

@@ -67,6 +67,7 @@ def revive_dead_players() -> None:
 def tick() -> None:
     respawn_creatures.delay()
     recover_player_status.delay()
+    revive_dead_players.delay()
 
 @shared_task
 def clean_orphan_items() -> None:

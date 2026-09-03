@@ -3,6 +3,7 @@ from asgiref.sync import async_to_sync
 from dataclasses import dataclass
 
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import QuerySet, F
 from django.db.models.functions import Least
 from django.core.cache import cache
@@ -186,6 +187,27 @@ class PlayerEngine:
         player.player_exp = 0
         player.player_last_death_date = timezone.now()
         player.save(update_fields=['player_exp', 'player_last_death_date'])
+
+        if (user_channel := cache.get(
+            USER_CHANNEL_WS_LOGGED.format(user_id=player.user_id)
+        )) is None:
+            logger.error("Player %s: user ws channel not found", player.user_id)
+            return
+
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            logger.error("Channel layer not found")
+            return
+
+        def send_player_is_dead():
+            async_to_sync(channel_layer.send)(
+                str(user_channel),
+                {
+                    "type": "player.is.dead"
+                }
+            )
+        
+        transaction.on_commit(send_player_is_dead)
 
     @staticmethod
     def revive_dead_players(players: QuerySet[Player]) -> None:

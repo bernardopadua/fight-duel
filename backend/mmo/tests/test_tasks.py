@@ -252,7 +252,7 @@ class MMOTasksTests(TestCase):
             USER_CHANNEL_WS_LOGGED.format(user_id=self.user_2.id),
             True
         )
-        with patch('mmo.services.fight_engine.random.randint', return_value=1):
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1):
             fs = FightEngine.should_fight(self.player.id)
             self.assertIsNotNone(fs)
             self.assertIsNotNone(fs.opponent) #pyright: ignore
@@ -281,7 +281,7 @@ class MMOTasksTests(TestCase):
             True,
             timeout=10
         )
-        with patch('mmo.services.fight_engine.random.randint', return_value=1):
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1):
             fs = FightEngine.should_fight(self.player.id)
             self.assertIsNotNone(fs)
             self.assertIsNotNone(fs.opponent) #pyright: ignore
