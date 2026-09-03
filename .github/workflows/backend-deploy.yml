@@ -44,9 +44,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: 'pip'
-          cache-dependency-path: './backend/requirements.txt'
+          cache-dependency-path: |
+            ./backend/requirements.txt
+            ./backend/requirements-otel.txt
 
       - run: pip install -r requirements.txt
+      - run: pip install -r requirements-otel.txt
 
       - name: Run tests
         env:
@@ -69,6 +72,8 @@ jobs:
 
           CELERY_BEAT_MMO_TICK: 30.0
           CELERY_BEAT_MMO_ORPHAN_ITEMS: 30.0
+          
+          OTEL_SDK_DISABLED: 'true'
         run: python manage.py test
 
   build-and-push:
