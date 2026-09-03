@@ -29,6 +29,7 @@ class CreatePlayerSerializer(ModelSerializer):
 class GetPlayerSerializer(ModelSerializer):
     player_equipped_weapon_item = SerializerMethodField()
     player_equipped_armour_item = SerializerMethodField()
+    player_world_info = SerializerMethodField()
     
     class Meta:
         model = Player
@@ -38,7 +39,8 @@ class GetPlayerSerializer(ModelSerializer):
             'player_equipped_weapon', 'player_equipped_weapon_item',
             'player_equipped_armour', 'player_equipped_armour_item',
             'player_status', 'player_max_weight', 
-            'player_currency', 'player_life','player_max_life'
+            'player_currency', 'player_life','player_max_life',
+            'player_world_info'
         ]
         read_only_fields = [
             'user', 'player_name', 'player_level', 'player_exp', 
@@ -46,9 +48,20 @@ class GetPlayerSerializer(ModelSerializer):
             'player_equipped_weapon', 'player_equipped_weapon_item',
             'player_equipped_armour', 'player_equipped_armour_item',
             'player_status', 'player_max_weight', 
-            'player_currency', 'player_life','player_max_life'
+            'player_currency', 'player_life','player_max_life',
+            'player_world_info'
         ]
     
+    def get_player_world_info(self, obj: Player) -> dict[str, Any] | None:
+        if obj.player_world is None:
+            return None
+
+        return {
+            "world_name": obj.player_world.world_name,
+            "world_min_level": obj.player_world.world_min_level,
+            "world_max_level": obj.player_world.world_max_level
+        }
+
     def get_player_equipped_weapon_item(self, obj: Player) -> dict[str, Any] | None:
         if obj.player_equipped_weapon is None:
             return None

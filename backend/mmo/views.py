@@ -31,9 +31,10 @@ class GetPlayerView(RetrieveAPIView):
         queryset = Player.objects.select_related(
             'player_equipped_weapon__item',
             'player_equipped_armour__item',
+            'player_world'
         ).filter(user=self.request.user)
         return queryset
-    
+
     @override
     def get_object(self) -> Player:
         return get_object_or_404(self.get_queryset())

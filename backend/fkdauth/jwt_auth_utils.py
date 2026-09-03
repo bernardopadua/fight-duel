@@ -1,5 +1,6 @@
 from rest_framework.authentication import get_authorization_header
 from rest_framework.request import Request
+from rest_framework.exceptions import AuthenticationFailed
 
 from django.http import HttpRequest
 from django.contrib.auth.models import User
@@ -108,5 +109,9 @@ def get_expiration_from_request(request: Request | HttpRequest) -> int:
     if not token:
         return 0
 
-    header, payload, signature = token.split('.')
+    try:
+        header, payload, signature = token.split('.')
+    except ValueError:
+        raise AuthenticationFailed("Invalid JWT")
+
     return decode_base64(payload).get("exp", 0)

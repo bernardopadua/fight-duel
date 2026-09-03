@@ -331,6 +331,17 @@ class FightEngine:
         fs: FightPvPStatus | None = None,
         fs_o: FightPvPStatus | None = None
     ) -> None:
+        """
+            Unlocks the fight and updates the player status.
+            Unlocks the fight after the fight finishes, when the player flees, when the player rejects.
+            It also runs on timeout fights where neither player accepted nor rejected.
+            Args:
+                fight_id (int): Fight id
+                player_id (int): Player id (the caller, attacker, owner of the action)
+                fs (FightPvPStatus | None, optional): Fight status. Defaults to None.
+                fs_o (FightPvPStatus | None, optional): Fight status. Defaults to None.
+        """
+        
         f = Fight.objects.filter(
             id=fight_id
         ).select_related(
@@ -685,7 +696,9 @@ class FightEngine:
                     fs_o.is_player_alive = False
                     fs_o.is_opponent_alive = True
 
-                    apply_death_penalty_to_player.delay(o.id)
+                    transaction.on_commit(
+                        lambda: apply_death_penalty_to_player.delay(o.id)
+                    )
                 
                 o.save(update_fields=["player_status", "player_life"])
                 p.save(update_fields=["player_stamina"])

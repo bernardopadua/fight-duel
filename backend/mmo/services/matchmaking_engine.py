@@ -70,8 +70,8 @@ class MatchmakingEngine:
 
         return True
 
-    @staticmethod
-    def inform_group_matchmaking_accepted(fight_id: int, player_id: int) -> bool:
+    @classmethod
+    def inform_group_matchmaking_accepted(cls, fight_id: int, player_id: int) -> bool:
         f = Fight.objects.filter(
             id=fight_id
         ).exclude(
@@ -89,6 +89,8 @@ class MatchmakingEngine:
         if not cl:
             logger.error('No channel layer for fight %s', fight_id)
             return False
+
+        cls.matchmaking_in_fight(fight_id)
 
         async_to_sync(cl.group_send)(
             FIGHT_GROUP.format(fight_id=fight_id),

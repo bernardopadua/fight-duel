@@ -37,6 +37,7 @@ class ToClientActions:
     INVENTORY_UPDATE = "inventory.update"
 
     PLAYER_REVIVE = "player.revive"
+    PLAYER_RECOVER_STATUS = "player.recover.status"
 
 class ToServerActions:
     ENTER_WORLD = "enter.world"
@@ -173,7 +174,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             await sync_to_async(WorldEngine.leave_world)(self.player_id)
         elif data.get("action") == ToServerActions.CHANGE_WORLD:
             world_id = data.get("data") or None
-            if not world_id:
+            if not world_id or not isinstance(world_id, int):
+                logger.error("Invalid world id %s for user %s", world_id, self.user.id)
                 return
             if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
                 await self.send(json.dumps({
@@ -227,9 +229,9 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
                     return
                 data = {}
                 if fs:
-                    data[fs.player_id] = fs.to_dict()
+                    data[str(fs.player_id)] = fs.to_dict()
                 if fs_o:
-                    data[fs_o.player_id] = fs_o.to_dict()
+                    data[str(fs_o.player_id)] = fs_o.to_dict()
 
                 await self.channel_layer.group_send(
                     FIGHT_GROUP.format(fight_id=self.fight_id),
@@ -332,7 +334,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         if not isinstance(data, dict):
             logger.error("Invalid fight pvp update data %s", data)
             return
-        for_me = data.get(self.player_id)
+        for_me = data.get(str(self.player_id))
         if not for_me:
             logger.error("No fight state for player %s in fight %s", self.player_id, self.fight_id)
             return
@@ -369,7 +371,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             logger.error("No fight id for user %s", self.user.id)
             return
 
-        await sync_to_async(MatchmakingEngine.matchmaking_in_fight)(fight_id)
+        #TODO: Gonna test it first.
+        #await sync_to_async(MatchmakingEngine.matchmaking_in_fight)(fight_id)
 
         self.pvp = True
         self.matchmaking = False
@@ -406,3 +409,14 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
     async def player_is_dead(self, event: dict) -> None:
         self.player_is_alive = False
+
+    async def player_recover_status(self, event: dict) -> None:
+        if not 'data' in event:
+            logger.error('No data for player %s recover status', self.user.id)
+            return
+
+        data = event['data']
+        await self.send(json.dumps({
+            "action": ToClientActions.PLAYER_RECOVER_STATUS,
+            "data": data
+        }))

@@ -120,7 +120,7 @@ class PlayerEngine:
             percent_life_restore = (total_power * PLAYER_LIFE_TOTAL_POWER_REGEN) + 5
             percent_stamina_restore = (total_power * PLAYER_STAMINA_TOTAL_POWER_REGEN) + 10
 
-            Player.objects.filter(
+            affected_lines = Player.objects.filter(
                 id=player.id
             ).exclude(
                 player_status=Player.PlayerStatus.DEAD
@@ -128,6 +128,33 @@ class PlayerEngine:
                 player_stamina=Least(F('player_stamina') + percent_stamina_restore, F('player_max_stamina')),
                 player_life=Least(F('player_life') + percent_life_restore, F('player_max_life'))
             )
+
+            if affected_lines and (user_channel := cache.get(USER_CHANNEL_WS_LOGGED.format(user_id=player.user_id))) is not None:
+                channel_layer = get_channel_layer()
+                if not channel_layer:
+                    logger.error('No channel layer for player %s recover status', player.id)
+                    continue
+
+                player_life = 0
+                player_stamina = 0
+
+                if player.player_status == Player.PlayerStatus.FIGHTING:
+                    # Is it worth it to do a refresh here?
+                    # The player can be at a fight... so refresh is needed
+                    player.refresh_from_db(fields=['player_life', 'player_stamina'])
+                    player_life = player.player_life
+                    player_stamina = player.player_stamina
+                else:
+                    player_life = min(int(player.player_life + percent_life_restore), player.player_max_life)
+                    player_stamina = min(int(player.player_stamina + percent_stamina_restore), player.player_max_stamina)
+
+                async_to_sync(channel_layer.send)(user_channel, {
+                    'type': 'player.recover.status',
+                    'data': {
+                        'playerLife': player_life,
+                        'playerStamina': player_stamina
+                    }
+                })
 
     @staticmethod
     def required_exp(player: Player) -> int:

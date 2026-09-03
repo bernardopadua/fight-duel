@@ -23,8 +23,6 @@ from mmo.constants import USER_CHANNEL_WS_LOGGED
 
 from fkdauth.jwt_auth_utils import create_token
 
-import threading
-
 class MMOPlayerTests(APITestCase):
     
     def setUp(self) -> None:

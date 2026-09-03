@@ -680,8 +680,9 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
 
     @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
     async def test_matchmaking_found_match_1_vs_1_attack_player_two_died_no_drop(self, mock_matchmaking_cleanup_task_run):
-        self.player.player_power = 9999
-        await self.player.asave(update_fields=['player_power'])
+        self.player.player_power = 999
+        self.player.player_stamina = 99999
+        await self.player.asave(update_fields=['player_power', 'player_stamina'])
 
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
@@ -748,7 +749,8 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
     @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
     async def test_matchmaking_found_match_1_vs_1_attack_player_two_died_with_drop(self, mock_matchmaking_cleanup_task_run):
         self.player.player_power = 9999
-        await self.player.asave(update_fields=['player_power'])
+        self.player.player_stamina = 9999
+        await self.player.asave(update_fields=['player_power', 'player_stamina'])
 
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
