@@ -198,9 +198,10 @@ CELERY_IMPORTS = (
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 # Django Cache
+DJANGO_CACHE_REDIS_HOST = f'{os.getenv('FDUEL_REDIS_HOST')}/{{db}}'
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.getenv('FDUEL_REDIS_HOST'),
+        'LOCATION': DJANGO_CACHE_REDIS_HOST.format(db='0'),
     }
 }

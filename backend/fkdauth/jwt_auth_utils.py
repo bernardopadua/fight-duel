@@ -1,5 +1,6 @@
 from rest_framework.authentication import get_authorization_header
 from rest_framework.request import Request
+from rest_framework.exceptions import AuthenticationFailed
 
 from django.http import HttpRequest
 from django.contrib.auth.models import User
@@ -42,7 +43,7 @@ def sign_token(encoded_header: str, encoded_payload: str, secret_key: str) -> by
 def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str:
     payload = {
         "userId": user_id,
-        "exp": int(time.time()) + time_expires,
+        "exp": time.time() + time_expires,
         "iat": time.time(),
         "jti": str(uuid.uuid4())
     }
@@ -80,6 +81,9 @@ def resolve_user_and_validate_from_token(token: str) -> User | None:
     user_id = payload.get('userId')
     token_iat = payload.get('iat')
 
+    if not token_iat:
+        raise JWTError('Invalid JWT payload')
+
     blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
 
     if blocked_until and blocked_until > token_iat:
@@ -105,5 +109,9 @@ def get_expiration_from_request(request: Request | HttpRequest) -> int:
     if not token:
         return 0
 
-    header, payload, signature = token.split('.')
+    try:
+        header, payload, signature = token.split('.')
+    except ValueError:
+        raise AuthenticationFailed("Invalid JWT")
+
     return decode_base64(payload).get("exp", 0)

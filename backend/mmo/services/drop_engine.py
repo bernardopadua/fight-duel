@@ -37,7 +37,7 @@ class DropEngine:
         )[0]
 
     @classmethod
-    def create_drop_item(cls, creature_level: int) -> Item:
+    def create_drop_item(cls, creature_level: int, *, item_type: Item.ItemType | None = None) -> Item:
         
         item_name = ""
         item_power = 0
@@ -47,7 +47,7 @@ class DropEngine:
             Item.ItemType.ARMOUR,
             Item.ItemType.WEAPON,
             Item.ItemType.CONSUMABLE
-        ])
+        ]) if item_type is None else item_type
 
         if item_type == Item.ItemType.ARMOUR:
             item_name = random.choice(ITEM_ARMOURS_NAMES)

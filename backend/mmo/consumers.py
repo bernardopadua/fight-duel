@@ -36,6 +36,9 @@ class ToClientActions:
     FIGHT_FINISH = "fight.finish"
     INVENTORY_UPDATE = "inventory.update"
 
+    PLAYER_REVIVE = "player.revive"
+    PLAYER_RECOVER_STATUS = "player.recover.status"
+
 class ToServerActions:
     ENTER_WORLD = "enter.world"
     LEAVE_WORLD = "leave.world"
@@ -158,123 +161,24 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             }))
             return
 
-        if data.get("action") == ToServerActions.ENTER_WORLD:
-            world_id = data.get("data") or None
-            if not world_id:
-                return
-            if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
-                await self.send(json.dumps({
-                    "action": ToClientActions.WORLD_ENTER,
-                    "data": world.to_world_enter()
-                }))
-        elif data.get("action") == ToServerActions.LEAVE_WORLD:
-            await sync_to_async(WorldEngine.leave_world)(self.player_id)
-        elif data.get("action") == ToServerActions.CHANGE_WORLD:
-            world_id = data.get("data") or None
-            if not world_id:
-                return
-            if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
-                await self.send(json.dumps({
-                    "action": ToClientActions.WORLD_ENTER,
-                    "data": world.to_world_enter()
-                }))
-        elif data.get("action") == ToServerActions.ACCEPT_MATCHMAKING:
-            if not self.fight_id:
-                logger.error("No fight id for user %s", self.user.id)
-                return
-            await sync_to_async(MatchmakingEngine.inform_group_matchmaking_accepted)(self.fight_id, self.player_id)
-        elif data.get("action") == ToServerActions.REJECT_MATCHMAKING:
-            if not self.fight_id:
-                logger.error("No fight id for user %s", self.user.id)
-                return
-            await sync_to_async(MatchmakingEngine.inform_group_matchmaking_rejected)(self.fight_id, self.player_id)
-        elif data.get("action") == ToServerActions.MOVE:
-            if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
-                self.fight_id = fs.fight_id
-                await self.fight_create_group(fs.fight_id)
-                
-                if not fs.opponent:
-                    await self.schedule_monster_attack(fs)
+        handler = {
+            ToServerActions.ENTER_WORLD: self._enter_world,
+            ToServerActions.LEAVE_WORLD: self._leave_world,
+            ToServerActions.CHANGE_WORLD: self._change_world,
+            ToServerActions.ACCEPT_MATCHMAKING: self._accept_matchmaking,
+            ToServerActions.REJECT_MATCHMAKING: self._reject_matchmaking,
+            ToServerActions.MOVE: self._move,
+            ToServerActions.ATTACK: self._attack,
+            ToServerActions.FLEE: self._flee,
+            ToServerActions.LOOT: self._loot,
+            ToServerActions.USE_ITEM: self._use_item,
+            ToServerActions.GET_INVENTORY: self._get_inventory
+        }.get(data.get("action", ''))
 
-                    await self.send(json.dumps({
-                        "action": ToClientActions.FIGHT,
-                        "data": fs.to_dict()
-                    }))
-                else:
-                    self.matchmaking = True
-                    await sync_to_async(MatchmakingEngine.matchmaking_cleanup_task_run)(self.fight_id)
-                    await sync_to_async(MatchmakingEngine.inform_player_matchmaking)(
-                        self.fight_id, 
-                        fs.player.player_name, 
-                        fs.player.player_level
-                    )
+        if handler:
+            await handler(data)
 
-                    await self.send(json.dumps({
-                        "action": ToClientActions.FIGHT_MATCHMAKING_START,
-                        "data": fs.to_dict()
-                    }))
-        elif data.get("action") == ToServerActions.ATTACK:
-            if not self.fight_id:
-                return
-            
-            if self.pvp:
-                fs, fs_o = await sync_to_async(FightEngine.attack_pvp_player)(self.fight_id, self.player_id)
-                if not fs and not fs_o:
-                    # It's normal, but I will maintain for now
-                    logger.warning("No fight state for fight %s", self.fight_id)
-                    return
-                data = {}
-                if fs:
-                    data[fs.player_id] = fs.to_dict()
-                if fs_o:
-                    data[fs_o.player_id] = fs_o.to_dict()
-
-                await self.channel_layer.group_send(
-                    FIGHT_GROUP.format(fight_id=self.fight_id),
-                    {
-                        "type": "fight.pvp.update",
-                        "data": data
-                    }
-                )
-            else:
-                fs = await sync_to_async(FightEngine.attack_monster)(self.fight_id)
-                if fs:
-                    await self.send(json.dumps({
-                        "action": ToClientActions.FIGHT_UPDATE,
-                        "data": fs.to_dict()
-                    }))
-        elif data.get("action") == ToServerActions.FLEE:
-            if not self.fight_id:
-                return
-            await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=self.pvp)
-        elif data.get("action") == ToServerActions.LOOT:
-            items_looted = data.get("data") or None
-            if not items_looted:
-                return
-            if not isinstance(items_looted, list):
-                return
-            if not await sync_to_async(PlayerInventoryEngine.loot_items)(self.player_id, items_looted):
-                return
-            await self.send(json.dumps({
-                "action": ToClientActions.INVENTORY_UPDATE,
-                "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
-            }))
-        elif data.get("action") == ToServerActions.USE_ITEM:
-            item_id = data.get("data") or None
-            if item_id is None:
-                return
-            if not await sync_to_async(PlayerInventoryEngine.use_item)(self.player_id, item_id):
-                return
-            await self.send(json.dumps({
-                "action": ToClientActions.INVENTORY_UPDATE,
-                "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
-            }))
-        elif data.get("action") == ToServerActions.GET_INVENTORY:
-            await self.send(json.dumps({
-                "action": ToClientActions.INVENTORY_UPDATE,
-                "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
-            }))
-        
+    # SEND: TYPES
     async def schedule_monster_attack(self, fs: FightStart) -> None:
         if not self.fight_id:
             return
@@ -330,7 +234,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         if not isinstance(data, dict):
             logger.error("Invalid fight pvp update data %s", data)
             return
-        for_me = data.get(self.player_id)
+        for_me = data.get(str(self.player_id))
         if not for_me:
             logger.error("No fight state for player %s in fight %s", self.player_id, self.fight_id)
             return
@@ -367,7 +271,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             logger.error("No fight id for user %s", self.user.id)
             return
 
-        await sync_to_async(MatchmakingEngine.matchmaking_in_fight)(fight_id)
+        #TODO: Gonna test it first.
+        #await sync_to_async(MatchmakingEngine.matchmaking_in_fight)(fight_id)
 
         self.pvp = True
         self.matchmaking = False
@@ -398,3 +303,150 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
 
     async def player_revive_notify(self, event: dict) -> None:
         self.player_is_alive = True
+        await self.send(json.dumps({
+            "action": ToClientActions.PLAYER_REVIVE
+        }))
+
+    async def player_is_dead(self, event: dict) -> None:
+        self.player_is_alive = False
+
+    async def player_recover_status(self, event: dict) -> None:
+        if not 'data' in event:
+            logger.error('No data for player %s recover status', self.user.id)
+            return
+
+        data = event['data']
+        await self.send(json.dumps({
+            "action": ToClientActions.PLAYER_RECOVER_STATUS,
+            "data": data
+        }))
+
+    # ACTIONS
+    async def _enter_world(self, data: dict) -> None:
+        world_id = data.get("data") or None
+        if not world_id or not isinstance(world_id, int):
+            logger.warning("Invalid world id %s for player %s", world_id, self.player_id)
+            return
+        if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
+            await self.send(json.dumps({
+                "action": ToClientActions.WORLD_ENTER,
+                "data": world.to_world_enter()
+            }))
+
+    async def _leave_world(self, data: dict) -> None:
+        await sync_to_async(WorldEngine.leave_world)(self.player_id)
+
+    async def _change_world(self, data: dict) -> None:
+        world_id = data.get("data") or None
+        if not world_id or not isinstance(world_id, int):
+            logger.error("Invalid world id %s for user %s", world_id, self.user.id)
+            return
+        if world := await sync_to_async(WorldEngine.enter_world)(self.player_id, world_id):
+            await self.send(json.dumps({
+                "action": ToClientActions.WORLD_ENTER,
+                "data": world.to_world_enter()
+            }))
+
+    async def _accept_matchmaking(self, data: dict) -> None:
+        if not self.fight_id:
+            logger.error("No fight id for user %s", self.user.id)
+            return
+        await sync_to_async(MatchmakingEngine.inform_group_matchmaking_accepted)(self.fight_id, self.player_id)
+
+    async def _reject_matchmaking(self, data: dict) -> None:
+        if not self.fight_id:
+            logger.error("No fight id for user %s", self.user.id)
+            return
+        await sync_to_async(MatchmakingEngine.inform_group_matchmaking_rejected)(self.fight_id, self.player_id)
+    
+    async def _move(self, data: dict) -> None:
+        if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
+            self.fight_id = fs.fight_id
+            await self.fight_create_group(fs.fight_id)
+            
+            if not fs.opponent:
+                await self.schedule_monster_attack(fs)
+
+                await self.send(json.dumps({
+                    "action": ToClientActions.FIGHT,
+                    "data": fs.to_dict()
+                }))
+            else:
+                self.matchmaking = True
+                await sync_to_async(MatchmakingEngine.matchmaking_cleanup_task_run)(self.fight_id)
+                await sync_to_async(MatchmakingEngine.inform_player_matchmaking)(
+                    self.fight_id, 
+                    fs.player.player_name, 
+                    fs.player.player_level
+                )
+
+                await self.send(json.dumps({
+                    "action": ToClientActions.FIGHT_MATCHMAKING_START,
+                    "data": fs.to_dict()
+                }))
+
+    async def _attack(self, data: dict) -> None:
+        if not self.fight_id:
+            return
+            
+        if self.pvp:
+            fs, fs_o = await sync_to_async(FightEngine.attack_pvp_player)(self.fight_id, self.player_id)
+            if not fs and not fs_o:
+                # It's normal, but I will maintain for now
+                logger.warning("No fight state for fight %s", self.fight_id)
+                return
+            data = {}
+            if fs:
+                data[str(fs.player_id)] = fs.to_dict()
+            if fs_o:
+                data[str(fs_o.player_id)] = fs_o.to_dict()
+
+            await self.channel_layer.group_send(
+                FIGHT_GROUP.format(fight_id=self.fight_id),
+                {
+                    "type": "fight.pvp.update",
+                    "data": data
+                }
+            )
+        else:
+            fs = await sync_to_async(FightEngine.attack_monster)(self.fight_id)
+            if fs:
+                await self.send(json.dumps({
+                    "action": ToClientActions.FIGHT_UPDATE,
+                    "data": fs.to_dict()
+                }))
+
+    async def _flee(self, data: dict) -> None:
+        if not self.fight_id:
+            return
+        await sync_to_async(FightEngine.player_flee)(self.fight_id, self.player_id, is_pvp=self.pvp)
+
+    async def _loot(self, data: dict) -> None:
+        items_looted = data.get("data") or None
+        if not items_looted:
+            return
+        if not isinstance(items_looted, list):
+            return
+        if not await sync_to_async(PlayerInventoryEngine.loot_items)(self.player_id, items_looted):
+            return
+        await self.send(json.dumps({
+            "action": ToClientActions.INVENTORY_UPDATE,
+            "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
+        }))
+
+    async def _use_item(self, data: dict) -> None:
+        item_id = data.get("data") or None
+        if item_id is None:
+            return
+        if not await sync_to_async(PlayerInventoryEngine.use_item)(self.player_id, item_id):
+            return
+        await self.send(json.dumps({
+            "action": ToClientActions.INVENTORY_UPDATE,
+            "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
+        }))
+
+    async def _get_inventory(self, data: dict) -> None:
+        await self.send(json.dumps({
+            "action": ToClientActions.INVENTORY_UPDATE,
+            "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
+        }))

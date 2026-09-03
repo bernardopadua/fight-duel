@@ -1,11 +1,27 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.core.cache import cache
+from django.test.utils import override_settings
 
 from mmo.models import Fight, Player, World, WorldCreature
 from mmo.services.fight_engine import FightEngine
 from mmo.services.world_engine import WorldEngine
 
+from mmo.constants import USER_CHANNEL_WS_LOGGED
+
+import os
+
+REDIS_HOST = os.environ['FDUEL_REDIS_HOST'] + '/15' #not the prod/dev db
+
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_HOST
+        }
+    }
+)
 class TestCommands(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
@@ -33,7 +49,11 @@ class TestCommands(TestCase):
             creature_life=self.creature_life,
             creature_chance_drop=100
         )
-    
+
+    def tearDown(self) -> None:
+        cache._cache.get_client(write=True).flushdb()
+        return super().tearDown()
+
     def test_clean_locked_fights(self):
         wr = WorldEngine.enter_world(self.player.id, self.world.id)
         self.assertIsNotNone(wr)
@@ -47,3 +67,21 @@ class TestCommands(TestCase):
         self.player.refresh_from_db()
         self.assertEqual(Fight.objects.count(), 0)
         self.assertEqual(self.player.player_status, Player.PlayerStatus.IDLE)
+
+    def test_clean_ws_user_channel(self):
+        cache_key = cache.add(
+            USER_CHANNEL_WS_LOGGED.format(
+                user_id=1
+            ), "dummy", timeout=60
+        )
+        self.assertTrue(cache_key)
+
+        call_command("clean_ws_user_channel")
+
+        cache_get = cache.get(
+            USER_CHANNEL_WS_LOGGED.format(
+                user_id=1
+            )
+        )
+        self.assertIsNone(cache_get)
+        

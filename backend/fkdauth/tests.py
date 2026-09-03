@@ -211,3 +211,37 @@ class UserLoginTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('status', response.data)
 
+class UserRefreshJWTTest(APITestCase):
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
+    
+    def test_user_refresh_jwt(self):
+        response = self.client.post(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+
+        token = response.data['token']
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.post(
+            '/api/auth/refresh-jwt/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        expiration_2_mins_token = create_token(self.user.id, settings.SECRET_KEY, time_expires=60)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {expiration_2_mins_token}')
+        response = self.client.post(
+            '/api/auth/refresh-jwt/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', response.data)
+        self.assertNotEqual(response.data['token'], token)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertEqual(response.cookies.get('Authorization-JWT').value, response.data['token'])

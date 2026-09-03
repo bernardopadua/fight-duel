@@ -164,7 +164,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
 
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -193,7 +193,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -245,6 +245,74 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         await com1.disconnect()
         await com2.disconnect()
 
+    @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
+    async def test_matchmaking_found_match_1_vs_1_reject_mm_and_try_move(self, mock_matchmaking_cleanup_task_run):
+        com1 = await self._connect_to_websocket_p1()
+        com2 = await self._connect_to_websocket_p2()
+       
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
+            await com1.send_json_to({'action': ToServerActions.MOVE})
+            response_1 = await com1.receive_json_from()
+
+            mock_matchmaking_cleanup_task_run.assert_called_once()
+
+            self.assertIn('action', response_1)
+            self.assertEqual(response_1['action'], ToClientActions.FIGHT_MATCHMAKING_START)
+            self.assertIn('fightId', response_1['data'])
+
+            current_fight = response_1['data']['fightId']
+            self.assertIsInstance(current_fight, int)
+
+            response_2 = await com2.receive_json_from()
+
+            self.assertIn('action', response_2)
+            self.assertEqual(response_2['action'], ToClientActions.FIGHT_MATCHMAKING)
+            self.assertIn('data', response_2)
+            self.assertIn('fightId', response_2['data'])
+            self.assertEqual(response_2['data']['fightId'], response_1['data']['fightId'])
+            self.assertIn('challengerName', response_2['data'])
+            self.assertIn('challengerLevel', response_2['data'])
+            self.assertEqual(response_2['data']['challengerName'], self.player.player_name)
+            self.assertEqual(response_2['data']['challengerLevel'], self.player.player_level)
+    
+        f = await Fight.objects.filter(
+            id=current_fight,
+            player=self.player,
+            opponent=self.player_2
+        ).afirst()
+        self.assertIsNotNone(f)
+
+        await com2.send_json_to({'action': ToServerActions.REJECT_MATCHMAKING})
+        
+        response_1 = await com1.receive_json_from()
+        response_2 = await com2.receive_json_from()
+
+        self.assertIn('data', response_1)
+        self.assertIn('action', response_1)
+        self.assertEqual(response_1['action'], ToClientActions.FIGHT_MATCHMAKING_REJECT)
+        self.assertIn('fightId', response_1['data'])
+        self.assertEqual(response_1['data']['fightId'], current_fight)
+
+        self.assertIn('data', response_2)
+        self.assertIn('action', response_2)
+        self.assertEqual(response_2['action'], ToClientActions.FIGHT_MATCHMAKING_REJECT)
+        self.assertIn('fightId', response_1['data'])
+        self.assertEqual(response_2['data']['fightId'], current_fight)
+
+        await com2.disconnect()
+
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=80): #80 avoid player fight
+            await com1.send_json_to({'action': ToServerActions.MOVE})
+            response_1 = await com1.receive_json_from()
+
+            self.assertIn('action', response_1)
+            self.assertEqual(response_1['action'], ToClientActions.FIGHT)
+            self.assertIn('fightId', response_1['data'])
+
+            current_fight = response_1['data']['fightId']
+            self.assertIsInstance(current_fight, int)
+
+
     @patch('mmo.consumers.monster_attack.apply_async')
     @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
     async def test_user_in_world_but_not_connected(self, mock_matchmaking_cleanup_task_run, mock_monster_attack_apply_sync):
@@ -253,7 +321,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         
         cache.delete(USER_CHANNEL_WS_LOGGED.format(user_id=self.player_2.user.id))
 
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
             
@@ -271,7 +339,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -332,7 +400,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -378,7 +446,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -473,7 +541,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -542,14 +610,84 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         await com2.disconnect()
 
     @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
-    async def test_matchmaking_found_match_1_vs_1_attack_player_two_died_no_drop(self, mock_matchmaking_cleanup_task_run):
-        self.player.player_power = 9999
-        await self.player.asave(update_fields=['player_power'])
+    async def test_matchmaking_found_match_1_vs_1_attack_pvp_no_stamina(self, mock_matchmaking_cleanup_task_run):
+        self.player.player_stamina = 1
+        self.player.player_power = 10
+        await self.player.asave(update_fields=['player_stamina', 'player_power'])
 
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
+            await com1.send_json_to({'action': ToServerActions.MOVE})
+            response_1 = await com1.receive_json_from()
+
+            mock_matchmaking_cleanup_task_run.assert_called_once()
+
+            self.assertIn('action', response_1)
+            self.assertEqual(response_1['action'], ToClientActions.FIGHT_MATCHMAKING_START)
+            self.assertIn('fightId', response_1['data'])
+
+            current_fight = response_1['data']['fightId']
+            self.assertIsInstance(current_fight, int)
+
+            response_2 = await com2.receive_json_from()
+
+            self.assertIn('action', response_2)
+            self.assertEqual(response_2['action'], ToClientActions.FIGHT_MATCHMAKING)
+            self.assertIn('data', response_2)
+            self.assertIn('fightId', response_2['data'])
+            self.assertEqual(response_2['data']['fightId'], response_1['data']['fightId'])
+            self.assertIn('challengerName', response_2['data'])
+            self.assertIn('challengerLevel', response_2['data'])
+            self.assertEqual(response_2['data']['challengerName'], self.player.player_name)
+            self.assertEqual(response_2['data']['challengerLevel'], self.player.player_level)
+    
+        f = await Fight.objects.filter(
+            id=current_fight,
+            player=self.player,
+            opponent=self.player_2
+        ).afirst()
+        self.assertIsNotNone(f)
+
+        await com2.send_json_to({'action': ToServerActions.ACCEPT_MATCHMAKING})
+
+        response_1 = await com1.receive_json_from()
+        response_2 = await com2.receive_json_from()
+
+        self.assertIn('action', response_1)
+        self.assertEqual(response_1['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response_1)
+        self.assertIn('fightId', response_1['data'])
+        self.assertEqual(response_1['data']['fightId'], current_fight)
+        self.assertIn('opponents', response_1['data'])
+        self.assertEqual(len(response_1['data']['opponents']), 2)
+        
+        self.assertIn('action', response_2)
+        self.assertEqual(response_2['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response_2)
+        self.assertIn('fightId', response_2['data'])
+        self.assertEqual(response_2['data']['fightId'], current_fight)
+        self.assertIn('opponents', response_2['data'])
+        self.assertEqual(len(response_2['data']['opponents']), 2)
+
+        await com1.send_json_to({'action': ToServerActions.ATTACK})
+        self.assertTrue(await com1.receive_nothing())
+        self.assertTrue(await com2.receive_nothing())
+    
+        await com1.disconnect()
+        await com2.disconnect()
+
+    @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
+    async def test_matchmaking_found_match_1_vs_1_attack_player_two_died_no_drop(self, mock_matchmaking_cleanup_task_run):
+        self.player.player_power = 999
+        self.player.player_stamina = 99999
+        await self.player.asave(update_fields=['player_power', 'player_stamina'])
+
+        com1 = await self._connect_to_websocket_p1()
+        com2 = await self._connect_to_websocket_p2()
+       
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -611,12 +749,13 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
     @patch('mmo.consumers.MatchmakingEngine.matchmaking_cleanup_task_run')
     async def test_matchmaking_found_match_1_vs_1_attack_player_two_died_with_drop(self, mock_matchmaking_cleanup_task_run):
         self.player.player_power = 9999
-        await self.player.asave(update_fields=['player_power'])
+        self.player.player_stamina = 9999
+        await self.player.asave(update_fields=['player_power', 'player_stamina'])
 
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -699,7 +838,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -773,7 +912,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -827,7 +966,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
@@ -890,7 +1029,7 @@ class MMOPVPMatchmakingConsumerTests(TransactionTestCase):
         com1 = await self._connect_to_websocket_p1()
         com2 = await self._connect_to_websocket_p2()
        
-        with patch('mmo.services.fight_engine.random.randint', return_value=1): #1 is the percent to fit 10 percent of chance
+        with patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1): #1 is the percent to fit 10 percent of chance
             await com1.send_json_to({'action': ToServerActions.MOVE})
             response_1 = await com1.receive_json_from()
 
