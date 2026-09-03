@@ -1,4 +1,15 @@
-import time, base64, json, hmac, hashlib
+from rest_framework.authentication import get_authorization_header
+from rest_framework.request import Request
+from rest_framework.exceptions import AuthenticationFailed
+
+from django.http import HttpRequest
+from django.contrib.auth.models import User
+from django.conf import settings
+from django.core.cache import cache
+
+from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
+
+import time, base64, json, hmac, hashlib, uuid
 from typing import Any
 
 class JWTError(Exception):
@@ -32,8 +43,9 @@ def sign_token(encoded_header: str, encoded_payload: str, secret_key: str) -> by
 def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str:
     payload = {
         "userId": user_id,
-        "exp": int(time.time()) + time_expires,
-        "iat": int(time.time())
+        "exp": time.time() + time_expires,
+        "iat": time.time(),
+        "jti": str(uuid.uuid4())
     }
 
     header = {
@@ -62,3 +74,44 @@ def decode_token(token: str, secret_key: str) -> dict[str, Any]:
         raise JWTExpiredError("JWT token expired")
 
     return payload
+
+def resolve_user_and_validate_from_token(token: str) -> User | None:
+    payload = decode_token(token, settings.SECRET_KEY)
+
+    user_id = payload.get('userId')
+    token_iat = payload.get('iat')
+
+    if not token_iat:
+        raise JWTError('Invalid JWT payload')
+
+    blocked_until = cache.get(USER_JWT_BLOCKED_BEFORE.format(user_id=user_id), 0)
+
+    if blocked_until and blocked_until > token_iat:
+        raise JWTError('Token revoked')
+    return User.objects.filter(id=user_id).first()
+
+def get_token_from_request(request: Request | HttpRequest | None) -> str | None:
+    if not request:
+        return None
+    
+    token: str | None = None
+
+    auth_header = get_authorization_header(request).split()
+    if auth_header and len(auth_header) >= 2 and auth_header[0] == b'Bearer':
+        token = auth_header[1].decode()
+    else:
+        token = request.COOKIES.get("Authorization-JWT", None)
+
+    return token
+
+def get_expiration_from_request(request: Request | HttpRequest) -> int:
+    token = get_token_from_request(request)
+    if not token:
+        return 0
+
+    try:
+        header, payload, signature = token.split('.')
+    except ValueError:
+        raise AuthenticationFailed("Invalid JWT")
+
+    return decode_base64(payload).get("exp", 0)

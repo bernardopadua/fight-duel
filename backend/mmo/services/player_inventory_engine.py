@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models import Sum, F, Value, Window, OuterRef, Subquery
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Least
 from django.forms import model_to_dict
 from djangorestframework_camel_case.util import camelize
 
@@ -8,6 +8,9 @@ from mmo.models import Player, Item, PlayerInventory
 from mmo.services.player_engine import PlayerEngine
 
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PlayerInventoryEngine:
     @staticmethod
@@ -30,28 +33,36 @@ class PlayerInventoryEngine:
         with transaction.atomic():
             if item.item_type == Item.ItemType.CONSUMABLE:
                 if item.item_consumable_type == Item.ItemConsumableType.LIFE:
-                    total_life = PlayerEngine.get_player_calculated_life(player)
-                    if (player.player_life + item.item_power) > total_life:
-                        player.player_life = total_life
-                    else:
-                        player.player_life += item.item_power
-                    player.save(update_fields=["player_life"])
+                    Player.objects.filter(
+                        id=player_id
+                    ).update(
+                        player_life=Least(F('player_life')+item.item_power, F('player_max_life'))
+                    )
                 elif item.item_consumable_type == Item.ItemConsumableType.STAMINA:
-                    total_stamina = PlayerEngine.get_player_calculated_stamina(player)
-                    if (player.player_stamina + item.item_power) > total_stamina:
-                        player.player_stamina = total_stamina
-                    else:
-                        player.player_stamina += item.item_power
-                    player.save(update_fields=["player_stamina"])
+                    Player.objects.filter(
+                        id=player_id
+                    ).update(
+                        player_stamina=Least(F('player_stamina')+item.item_power, F('player_max_stamina'))
+                    )
                 
                 #This is cascade.
                 item.delete()
             elif item.item_type == Item.ItemType.ARMOUR:
                 player.player_equipped_armour = iv
-                player.save(update_fields=["player_equipped_armour"])
+                Player.objects.filter(
+                    id=player_id
+                ).update(
+                    player_equipped_armour=iv,
+                    player_max_life=PlayerEngine.get_player_calculated_life(player)
+                )
             elif item.item_type == Item.ItemType.WEAPON:
                 player.player_equipped_weapon = iv
-                player.save(update_fields=["player_equipped_weapon"])
+                Player.objects.filter(
+                    id=player_id
+                ).update(
+                    player_equipped_weapon=iv,
+                    player_max_life=PlayerEngine.get_player_calculated_life(player)
+                )
 
         return True
 
@@ -115,8 +126,7 @@ class PlayerInventoryEngine:
                 ) for i in items
             ])
         except Exception as e:
-            #TODO: Logging
-            print(e)
+            logger.error(f"Error loding items {items_ids} for player {player_id}: {e}", exc_info=True)
             return False
 
         return True
@@ -130,33 +140,3 @@ class PlayerInventoryEngine:
         items_inventory_dict = [i.item.to_dict() for i in items_inventory]
 
         return items_inventory_dict
-
-    #TODO: Remove this.
-    @staticmethod
-    def testing() -> None:
-        #This complication is intentional
-        sub_player_inventory = (
-            PlayerInventory.objects.filter(
-                player_id=OuterRef('pk')
-            ).exclude(
-                item_id=OuterRef('player_equipped_weapon_id')
-            ).exclude(
-                item_id=OuterRef('player_equipped_armour_id')
-            ).values(
-                "player_id"
-            ).annotate(
-                total_items_weight=Sum("item__item_weight")
-            ).values("total_items_weight")[:1]
-        )
-
-        player = Player.objects.filter(
-            id=7
-        ).annotate(
-            total_items_equipped=(
-                Coalesce(F("player_equipped_weapon__item__item_weight"), Value(0)) + 
-                Coalesce(F("player_equipped_armour__item__item_weight"), Value(0))
-            ),
-            total_inventory_weight=Coalesce(Subquery(sub_player_inventory), Value(0))
-        ).first()
-
-        print(player)

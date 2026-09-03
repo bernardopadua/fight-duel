@@ -1,43 +1,18 @@
-from asgiref.sync import async_to_sync
-
 from celery import shared_task
-from channels.layers import get_channel_layer
+
+from django.db.models import F
 from django.utils import timezone
 
-from mmo.services.fight_engine import FightEngine
-from mmo.services.player_engine import PlayerEngine
-from mmo.services.constants import MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE
-
-from mmo.models import WorldCreature, World, Player, Item
+from mmo.models import World, WorldCreature, Player, Item
 from mmo.data.monster_names import MONSTER_NAMES
+from mmo.services.player_engine import PlayerEngine
+from mmo.services.constants import (
+    MONSTER_LIFE_VARIATION, MONSTER_BASE_LIFE,
+    PLAYER_TIME_DEATH_COOLDOWN
+)
 
 from datetime import timedelta
 import random
-
-@shared_task
-def monster_attack(fight_id: int, channel_name: str) -> None:
-    if not FightEngine.is_fight_still_active(fight_id):
-        return
-    
-    fs = FightEngine.attack_player(fight_id)
-    if fs is None: #pyright
-        return
-
-    cl = get_channel_layer()
-    if cl is None: #pyright
-        raise Exception("Channel layer not found")
-    async_to_sync(cl.send)(channel_name, {
-        "type": "fight.update",
-        "data": fs.to_dict()
-    })
-
-    if fs.is_fight_over:
-        return
-
-    if fs.creature_level is None:
-        return
-    
-    monster_attack.apply_async(args=[fight_id, channel_name], countdown=fs.is_creature_attacking)
 
 @shared_task
 def respawn_creatures() -> None:
@@ -71,16 +46,28 @@ def recover_player_status() -> None:
         "player_equipped_weapon__item",
         "player_equipped_armour__item"
     ).exclude(
-        player_status__in=[Player.PlayerStatus.DEAD, Player.PlayerStatus.FIGHTING]
+        player_status__in=[Player.PlayerStatus.DEAD],
+    ).exclude(
+        player_life=F('player_max_life'),
+        player_stamina=F('player_max_stamina')
     ).all()
 
     if len(players) > 0:
         PlayerEngine.recover_players_status(players)
 
 @shared_task
+def revive_dead_players() -> None:
+    players = Player.objects.filter(
+        player_status=Player.PlayerStatus.DEAD,
+        player_last_death_date__lte=(timezone.now() - timedelta(seconds=PLAYER_TIME_DEATH_COOLDOWN))
+    ).all()
+    PlayerEngine.revive_dead_players(players)
+
+@shared_task
 def tick() -> None:
     respawn_creatures.delay()
     recover_player_status.delay()
+    revive_dead_players.delay()
 
 @shared_task
 def clean_orphan_items() -> None:

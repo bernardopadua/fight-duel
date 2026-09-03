@@ -1,4 +1,4 @@
-from mmo.models import Item
+from mmo.models import Item, Player
 from mmo.data.item_names import (
     ITEM_WEAPONS_NAMES, 
     ITEM_CONSUMABLE_NAMES, 
@@ -37,7 +37,7 @@ class DropEngine:
         )[0]
 
     @classmethod
-    def create_drop_item(cls, creature_level: int) -> Item:
+    def create_drop_item(cls, creature_level: int, *, item_type: Item.ItemType | None = None) -> Item:
         
         item_name = ""
         item_power = 0
@@ -47,7 +47,7 @@ class DropEngine:
             Item.ItemType.ARMOUR,
             Item.ItemType.WEAPON,
             Item.ItemType.CONSUMABLE
-        ])
+        ]) if item_type is None else item_type
 
         if item_type == Item.ItemType.ARMOUR:
             item_name = random.choice(ITEM_ARMOURS_NAMES)
@@ -86,7 +86,7 @@ class DropEngine:
             return [], 0
         
         currency = 0
-        if random.randint(1, 100) > creature_chance_drop:
+        if cls.calculate_chance_drop_currency(creature_level) <= creature_chance_drop:
             currency = cls.calculate_currency(creature_level)
 
         qty_drops = random.randint(1, 3)
@@ -97,3 +97,12 @@ class DropEngine:
             items.append(item)
 
         return items, currency
+
+    @staticmethod
+    def calculate_chance_drop_by_player(player: Player):
+        # I will make the calculations after PVP is set.
+        return random.randint(40, 100)
+
+    @staticmethod
+    def calculate_chance_drop_currency(creature_level: int) -> int:
+        return random.randint(1, 100)

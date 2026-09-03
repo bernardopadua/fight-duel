@@ -1,45 +1,94 @@
 from unittest.mock import patch
 
+from asgiref.sync import sync_to_async
+from celery import Celery
 from celery.contrib.testing.worker import start_worker
+from celery.contrib.testing.tasks import ping
+
+from core.asgi import application
+from channels.testing import WebsocketCommunicator
 
 from django.contrib.auth.models import User
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
+from django.core.cache import cache
+from django.conf import settings
 
 from core.settings import CELERY_REDIS_HOST_DB
 from core.celery import app
 
-from core.settings import CELERY_RESULT_BACKEND
-from mmo.models import Item, Player, World, WorldCreature
+from fkdauth.jwt_auth_utils import create_token
+
+from mmo.consumers import ToClientActions
+from mmo.models import Item, Player, World, WorldCreature, Fight, PlayerInventory
 from mmo.services.fight_engine import FightEngine
-from mmo.tasks import clean_orphan_items, respawn_creatures, recover_player_status, monster_attack
+from mmo.tasks.task_world import (
+    clean_orphan_items, respawn_creatures, recover_player_status,
+    revive_dead_players
+)
+from mmo.tasks.task_fight import monster_attack
+from mmo.tasks.task_matchmaking import clean_up_matchmaking_fight
+from mmo.tasks.task_player import apply_death_penalty_to_player
+from mmo.tasks.task_world import recover_player_status
+from mmo.constants import USER_CHANNEL_WS_LOGGED, MATCHMAKING_IN_FIGHT
 
 from datetime import timedelta
 
-# @override_settings(
-#     CELERY_RESULT_BACKEND=CELERY_REDIS_HOST_DB.format(db='15'),
-#     CELERY_BROKER_URL=CELERY_REDIS_HOST_DB.format(db='15')
-# )
-class MMOCeleryWorkerTests(TransactionTestCase):
+# This is necessary due to split-config by celery testing executing in two threads
+# one running on main thread and one running on worker thread.
+# the original config was splitting the cache in db0 and db15 returning timeout
+# since no result in db0 was found (results were in db15).
+CELERY_TEST_URL = CELERY_REDIS_HOST_DB.format(db='15')
+test_celery_app = Celery('fight_duel_tests')
+test_celery_app.conf.update(
+    broker_url=CELERY_TEST_URL,
+    result_backend=CELERY_TEST_URL,
+    accept_content=['json'],
+    task_serializer='json',
+    result_serializer='json',
+    broker_connection_retry_on_startup=True,
+)
+
+class EmbeddedCeleryWorkerMixin:
+    """Runs the test class against a real embedded worker on the isolated ``test_celery_app``."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.worker = start_worker(app, perform_ping_check=False)
-        cls.worker.__enter__()
-
-        app.conf.update(
-            result_backend=CELERY_REDIS_HOST_DB.format(db='15'),
-            broker_url=CELERY_REDIS_HOST_DB.format(db='15')
+        cls.worker = start_worker(
+            test_celery_app, perform_ping_check=True, ping_task_timeout=30
         )
+        cls.worker.__enter__()
 
     @classmethod
     def tearDownClass(cls):
         cls.worker.__exit__(None, None, None)
+        app.set_current()
+        app.set_default()
         super().tearDownClass()
+
+
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "game-worker-tests"
+        }
+    }
+)
+class MMOCeleryWorkerTests(EmbeddedCeleryWorkerMixin, TransactionTestCase):
     
     def setUp(self) -> None:
+        cache.clear()
+
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
+
+        self.world = World.objects.create(
+            world_name='TestWorld',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
 
         self.player_power = 999
         self.player_life = 100
@@ -48,14 +97,21 @@ class MMOCeleryWorkerTests(TransactionTestCase):
             player_level=10,
             player_power=self.player_power,
             player_life=self.player_life,
-            user=self.user
+            user=self.user,
+            player_world=self.world
         )
-        self.world = World.objects.create(
-            world_name='TestWorld',
-            world_total_creatures=2,
-            world_min_level=1,
-            world_max_level=10
+
+        self.user_2 = User.objects.create_user(username='test2', email='test2@test.com', password='123456')
+        self.player_2_power = 10
+        self.player_2 = Player.objects.create(
+            player_name='TestPlayer2',
+            player_level=10,
+            player_power=self.player_2_power,
+            player_life=self.player_life,
+            user=self.user_2,
+            player_world=self.world
         )
+
         self.creature_name = 'TestCreature'
         self.creature_level = 1
         self.creature_life = 100
@@ -88,6 +144,17 @@ class MMOCeleryWorkerTests(TransactionTestCase):
             item_type=self.item_type_armour,
             item_power=self.item_power_armour,
             item_weight=self.item_weight_armour
+        )
+
+        self.item_name_weapon = 'TestWeapon'
+        self.item_type_weapon = Item.ItemType.WEAPON
+        self.item_power_weapon = 10
+        self.item_weight_weapon = 10
+        self.item_weapon = Item.objects.create(
+            item_name=self.item_name_weapon,
+            item_type=self.item_type_weapon,
+            item_power=self.item_power_weapon,
+            item_weight=self.item_weight_weapon
         )
 
     def test_orphan_items_cleaning(self):
@@ -126,8 +193,8 @@ class MMOCeleryWorkerTests(TransactionTestCase):
         self.assertGreater(self.player.player_stamina, 50)
         self.assertTrue(async_result.successful())
 
-    @patch('mmo.tasks.async_to_sync')
-    @patch('mmo.tasks.get_channel_layer')
+    @patch('mmo.tasks.task_fight.async_to_sync')
+    @patch('mmo.tasks.task_fight.get_channel_layer')
     def test_monster_attack(self, mock_get_channel_layer, mock_async_to_sync):
         fs = FightEngine.should_fight(self.player.id)
         self.assertIsNotNone(fs)
@@ -151,3 +218,230 @@ class MMOCeleryWorkerTests(TransactionTestCase):
         self.player.refresh_from_db()
         self.assertEqual(self.player.player_status, Player.PlayerStatus.DEAD)
 
+    def test_clean_matchmaking_fight_timeout(self):
+        with (
+            patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1)
+        ):
+            cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id), 'test_channel', timeout=10)
+            cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user_2.id), 'test_channel', timeout=10)
+
+            fs = FightEngine.should_fight(self.player.id)
+            self.assertIsNotNone(fs)
+            self.assertIsNotNone(fs.opponent) #pyright: ignore
+
+            f = Fight.objects.select_related('player', 'opponent').filter(id=fs.fight_id).first() #pyright: ignore
+            p = f.player
+            o = f.opponent
+            self.assertIsNotNone(f)
+            self.assertIsNotNone(p)
+            self.assertIsNotNone(o)
+            
+            async_result = clean_up_matchmaking_fight.delay(fs.fight_id) #pyright: ignore
+            async_result.get(timeout=5)
+
+            self.assertFalse(Fight.objects.filter(id=fs.fight_id).exists()) #pyright: ignore
+
+    def test_clean_matchmaking_fight_in_fight(self):
+        with (
+            patch('mmo.services.fight_engine.FightEngine.calculate_chance_matchmaking', return_value=1)
+        ):
+            cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id), 'test_channel', timeout=10)
+            cache.set(USER_CHANNEL_WS_LOGGED.format(user_id=self.user_2.id), 'test_channel', timeout=10)
+
+            fs = FightEngine.should_fight(self.player.id)
+            self.assertIsNotNone(fs)
+            self.assertIsNotNone(fs.opponent) #pyright: ignore
+
+            f = Fight.objects.select_related('player', 'opponent').filter(id=fs.fight_id).first() #pyright: ignore
+            p = f.player
+            o = f.opponent
+            self.assertIsNotNone(f)
+            self.assertIsNotNone(p)
+            self.assertIsNotNone(o)
+            
+            cache.add(MATCHMAKING_IN_FIGHT.format(fight_id=fs.fight_id), True, timeout=10)
+
+            async_result = clean_up_matchmaking_fight.delay(fs.fight_id) #pyright: ignore
+            async_result.get(timeout=5)
+
+            self.assertTrue(Fight.objects.filter(id=fs.fight_id).exists()) #pyright: ignore
+
+    def test_player_death_penalty(self):
+        self.player.player_status = Player.PlayerStatus.DEAD
+        self.player.player_exp = 1000
+        inv_armour = PlayerInventory.objects.create(
+            item=self.item_armour,
+            player=self.player
+        )
+        inv_weapon = PlayerInventory.objects.create(
+            item=self.item_weapon,
+            player=self.player
+        )
+        self.player.player_equipped_armour = inv_armour
+        self.player.player_equipped_weapon = inv_weapon
+
+        self.player.save(update_fields=[
+            'player_status', 'player_currency', 
+            'player_equipped_armour', 'player_equipped_weapon'
+        ])
+
+        async_result = apply_death_penalty_to_player.delay(self.player.id)
+        async_result.get(timeout=5)
+
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.player_status, Player.PlayerStatus.DEAD)
+        self.assertEqual(self.player.player_currency, 0)
+        self.assertIsNone(self.player.player_equipped_armour)
+        self.assertIsNone(self.player.player_equipped_weapon)
+
+    def test_revive_dead_player(self):    
+        self.player.player_status = Player.PlayerStatus.DEAD
+        self.player.player_last_death_date = timezone.now() - timedelta(minutes=3)
+        self.player.save(update_fields=['player_status', 'player_last_death_date'])
+
+        cache.add(
+            USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id),
+            'channel_test',
+            timeout=10
+        )
+        async_result = revive_dead_players.delay()
+        async_result.get(timeout=5)
+
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.player_status, Player.PlayerStatus.IDLE)
+
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "game-worker-consumer-tests"
+        }
+    }
+)
+class MMOCeleryWorkerWebconsumerTests(EmbeddedCeleryWorkerMixin, TransactionTestCase):
+
+    def setUp(self) -> None:
+        cache.clear()
+
+        self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
+        self.token = create_token(self.user.id, settings.SECRET_KEY)
+
+        self.world = World.objects.create(
+            world_name='TestWorld',
+            world_total_creatures=2,
+            world_min_level=1,
+            world_max_level=10
+        )
+
+        self.player_power = 10
+        self.player_life = 100
+        self.player = Player.objects.create(
+            player_name='TestPlayer',
+            player_level=10,
+            player_power=self.player_power,
+            player_life=self.player_life,
+            user=self.user,
+            player_world=self.world
+        )
+
+        self.user_2 = User.objects.create_user(username='test2', email='test2@test.com', password='123456')
+        self.player_2_power = 10
+        self.player_2 = Player.objects.create(
+            player_name='TestPlayer2',
+            player_level=10,
+            player_power=self.player_2_power,
+            player_life=self.player_life,
+            user=self.user_2,
+            player_world=self.world
+        )
+
+        self.creature_name = 'TestCreature'
+        self.creature_level = 1
+        self.creature_life = 100
+        self.creature = WorldCreature.objects.create(
+            world=self.world,
+            creature_name=self.creature_name,
+            creature_level=self.creature_level,
+            creature_life=self.creature_life,
+            creature_chance_drop=0
+        )
+
+        self.item_name_life_potion = 'TestItem'
+        self.item_type_life_potion = Item.ItemType.CONSUMABLE
+        self.item_power_life_potion = 100
+        self.item_weight_life_potion = 10
+        self.item_life_potion = Item.objects.create(
+            item_name=self.item_name_life_potion,
+            item_type=self.item_type_life_potion,
+            item_power=self.item_power_life_potion,
+            item_weight=self.item_weight_life_potion,
+            item_consumable_type=Item.ItemConsumableType.LIFE
+        )
+
+        self.item_name_armour = 'TestArmour'
+        self.item_type_armour = Item.ItemType.ARMOUR
+        self.item_power_armour = 10
+        self.item_weight_armour = 10
+        self.item_armour = Item.objects.create(
+            item_name=self.item_name_armour,
+            item_type=self.item_type_armour,
+            item_power=self.item_power_armour,
+            item_weight=self.item_weight_armour
+        )
+
+        self.item_name_weapon = 'TestWeapon'
+        self.item_type_weapon = Item.ItemType.WEAPON
+        self.item_power_weapon = 10
+        self.item_weight_weapon = 10
+        self.item_weapon = Item.objects.create(
+            item_name=self.item_name_weapon,
+            item_type=self.item_type_weapon,
+            item_power=self.item_power_weapon,
+            item_weight=self.item_weight_weapon
+        )
+
+    async def _connect_to_websocket(self, 
+        *,
+        test_expired_connection: bool = False,
+        test_connected_false: bool = False
+    ) -> WebsocketCommunicator:
+        token_headers = [
+            (b'cookie', f'Authorization-JWT={self.token}'.encode()),
+        ]
+        communicator = WebsocketCommunicator(
+            application, '/ws/fight/',
+            headers=token_headers
+        )
+        connected, _ = await communicator.connect()
+
+        if test_expired_connection:
+            self.assertFalse(connected)    
+            return communicator
+
+        if test_connected_false:
+            self.assertFalse(connected)    
+            return communicator
+
+        self.assertTrue(connected)
+
+        return communicator
+
+    async def test_receive_recover_status_message(self):
+        self.player.player_life = 50
+        self.player.player_stamina = 50
+        await self.player.asave(update_fields=['player_life', 'player_stamina'])
+
+        communicator = await self._connect_to_websocket()
+
+        async_result = await sync_to_async(recover_player_status.delay)()
+        await sync_to_async(async_result.get)(timeout=5)
+
+        response = await communicator.receive_json_from()
+        self.assertIn('action', response)
+        self.assertIn('data', response)
+        self.assertEqual(response['action'], ToClientActions.PLAYER_RECOVER_STATUS)
+        self.assertIn('playerLife', response['data'])
+        self.assertIn('playerStamina', response['data'])
+        self.assertGreater(response['data']['playerLife'], self.player.player_life)
+        self.assertGreater(response['data']['playerStamina'], self.player.player_stamina)
+        await communicator.disconnect()

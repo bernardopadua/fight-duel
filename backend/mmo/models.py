@@ -7,7 +7,16 @@ class World(models.Model):
     world_name = models.CharField(max_length=100)
     world_total_creatures = models.IntegerField(default=100)
     world_min_level = models.IntegerField(default=1)
-    world_max_level = models.IntegerField(default=0)
+    world_max_level = models.IntegerField(default=100)
+
+    def to_world_enter(self):
+        return {
+            "id": self.id,
+            "worldName": self.world_name,
+            "worldMinLevel": self.world_min_level,
+            "worldMaxLevel": self.world_max_level
+        }
+
 
 class WorldCreature(models.Model):
     creature_name = models.CharField(max_length=100)
@@ -26,6 +35,11 @@ class Item(models.Model):
         LIFE = "life"
         STAMINA = "stamina"
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['item_created_date']),
+        ]
+
     item_name = models.CharField(max_length=100)
     item_power = models.IntegerField(default=0)
     item_weight = models.IntegerField(default=1)
@@ -41,7 +55,7 @@ class Item(models.Model):
             "itemWeight": self.item_weight,
             "itemType": self.item_type,
             "itemConsumableType": self.item_consumable_type,
-            "itemCreatedDate": str(self.item_created_date),
+            #"itemCreatedDate": str(self.item_created_date), Well, commenting for now.. hehe
         }
 
 class Player(models.Model):
@@ -53,20 +67,30 @@ class Player(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     player_name = models.CharField(max_length=100)
     player_life = models.IntegerField(default=100)
+    player_max_life = models.IntegerField(default=100)
     player_level = models.IntegerField(default=1)
     player_exp = models.IntegerField(default=0)
     player_power = models.IntegerField(default=10)
     player_stamina = models.IntegerField(default=100)
+    player_max_stamina = models.IntegerField(default=100)
     player_equipped_weapon = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_weapon_equipped")
     player_equipped_armour = models.ForeignKey('PlayerInventory', on_delete=models.SET_NULL, null=True, blank=True, related_name="player_armour_equipped")
     player_status = models.CharField(max_length=50, choices=PlayerStatus.choices, default=PlayerStatus.IDLE)
     player_max_weight = models.IntegerField(default=100)
     player_currency = models.IntegerField(default=0)
+    player_world = models.ForeignKey('World', on_delete=models.SET_NULL, null=True, blank=True, related_name='players')
+    player_last_death_date = models.DateTimeField(null=True, blank=True)
 
 class PlayerInventory(models.Model):
     item = models.ForeignKey('Item', on_delete=models.CASCADE)
     player = models.ForeignKey('Player', on_delete=models.CASCADE)
 
 class Fight(models.Model):
-    creature = models.ForeignKey('WorldCreature', on_delete=models.CASCADE)
-    player = models.ForeignKey('Player', on_delete=models.CASCADE)
+    creature = models.ForeignKey('WorldCreature', on_delete=models.CASCADE, 
+        null=True, blank=True
+    )
+    player = models.OneToOneField('Player', on_delete=models.CASCADE)
+    opponent = models.OneToOneField('Player', on_delete=models.CASCADE, 
+        null=True, blank=True, related_name="opponent_fight"
+    )
+    fight_created_date = models.DateTimeField(auto_now_add=True)

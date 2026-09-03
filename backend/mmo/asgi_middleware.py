@@ -1,11 +1,16 @@
-from http.cookies import SimpleCookie
-
 from django.contrib.auth.models import AnonymousUser, User
-from django.conf import settings
 
 from channels.db import database_sync_to_async
 
-from fkdauth.jwt_auth_utils import decode_token, JWTError, JWTExpiredError
+from fkdauth.jwt_auth_utils import (
+    JWTError, JWTExpiredError,
+    resolve_user_and_validate_from_token
+)
+
+from http.cookies import SimpleCookie
+import logging
+
+logger = logging.getLogger(__name__)
 
 class JWTASGIAuthMiddleware:
     def __init__(self, app):
@@ -22,19 +27,16 @@ class JWTASGIAuthMiddleware:
         return await self.app(scope, receive, send)
 
     @database_sync_to_async
-    def get_user(self, token):
-        # decodifica JWT, busca User, retorna AnonymousUser() se inválido
+    def get_user(self, token: str) -> User | AnonymousUser:
         try:
-            payload = decode_token(token, settings.SECRET_KEY)
-
-            user = User.objects.filter(id=payload.get('userId', None))
-
-            if not user.exists():
+            user = resolve_user_and_validate_from_token(token)
+            if not user or not user.is_active:
                 return AnonymousUser()
 
-            return user.first()
+            return user
 
         except (JWTError, JWTExpiredError):
             return AnonymousUser()
         except Exception as e:
-            raise Exception(f"Invalid JWT token")
+            logger.exception("Error occurred while decoding JWT token: %s", e)
+            return AnonymousUser()
