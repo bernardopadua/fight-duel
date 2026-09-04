@@ -22,20 +22,22 @@ class PlayerInventoryEngine:
     def use_item(player_id: int, item_id: int) -> bool:
         if not item_id:
             return False
-
-        iv = PlayerInventory.objects.filter(
-            item_id=item_id,
-            player_id=player_id
-        ).select_related(
-            "item",
-            "player"
-        ).first()
-        if not iv:
-            return False
-        
-        item: Item = iv.item
-        player: Player = iv.player
         with transaction.atomic():
+            iv = PlayerInventory.objects.select_for_update(
+                of=['self', 'player']
+            ).filter(
+                item_id=item_id,
+                player_id=player_id
+            ).select_related(
+                "item",
+                "player"
+            ).first()
+            if not iv:
+                return False
+
+            item: Item = iv.item
+            player: Player = iv.player
+            
             if item.item_type == Item.ItemType.CONSUMABLE:
                 if item.item_consumable_type == Item.ItemConsumableType.LIFE:
                     Player.objects.filter(
@@ -52,22 +54,21 @@ class PlayerInventoryEngine:
                 
                 #This is cascade.
                 item.delete()
-            elif item.item_type == Item.ItemType.ARMOUR:
-                player.player_equipped_armour = iv
-                Player.objects.filter(
-                    id=player_id
-                ).update(
-                    player_equipped_armour=iv,
-                    player_max_life=PlayerEngine.get_player_calculated_life(player)
-                )
-            elif item.item_type == Item.ItemType.WEAPON:
-                player.player_equipped_weapon = iv
-                Player.objects.filter(
-                    id=player_id
-                ).update(
-                    player_equipped_weapon=iv,
-                    player_max_life=PlayerEngine.get_player_calculated_life(player)
-                )
+            elif item.item_type == Item.ItemType.ARMOUR or item.item_type == Item.ItemType.WEAPON:
+                if item.item_type == Item.ItemType.ARMOUR:
+                    player.player_equipped_armour = iv
+                elif item.item_type == Item.ItemType.WEAPON:
+                    player.player_equipped_weapon = iv
+
+                player.player_max_life = PlayerEngine.get_player_calculated_life(player)
+                player.player_life = min(player.player_life, player.player_max_life)
+
+                player.save(update_fields=[
+                    'player_equipped_weapon',
+                    'player_equipped_armour',
+                    'player_max_life',
+                    'player_life'
+                ])
 
         return True
 
