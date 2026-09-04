@@ -1,14 +1,19 @@
 import { useActionState } from "react";
 
-import { useAuth } from "../auth/AuthContext";
+//CONTEXT
+import { useAuth } from "@/auth/AuthContext";
 
-import type { Player } from "./types";
-import type { PlayerCreationPayload } from "../api/types";
+//TYPES
+import type { PlayerCreationPayload } from "@/api/types";
 
-import { createPlayer } from "../api/player";
+//SERVICES
+import { createPlayer } from "@/api/player";
+import { usePlayerStore } from "@/game/store/player-store";
 
-export default function PlayerCreation({ onPlayerCreation }: { onPlayerCreation: (p: Player) => void } ){
+export default function PlayerCreation(){
     const auth = useAuth();
+    const setPlayer = usePlayerStore((s) => s.setPlayer);
+
     const [errorState, formAction, isPending] = useActionState(
         async (_prevState: string | null, formData: FormData) : Promise<string | null> => {
             const playerName = formData.get("playerName")?.toString();
@@ -16,7 +21,7 @@ export default function PlayerCreation({ onPlayerCreation }: { onPlayerCreation:
             if (!playerName || playerName.trim().length < 3){
                 return "Player name must be at least 3 characters long";
             }
-            
+
             const payload: PlayerCreationPayload = {
                 playerName: playerName
             };
@@ -27,7 +32,7 @@ export default function PlayerCreation({ onPlayerCreation }: { onPlayerCreation:
                     return "Error creating player";
                 }
 
-                onPlayerCreation(player);
+                setPlayer(player);
             } catch (err){
                 console.error(err);
                 return "Error creating player. Contact support.";

@@ -1,6 +1,10 @@
-import type { Player } from "./types";
+import { usePlayerStore } from '@/game/store/player-store';
 
-export default function GameLayout({ player }: { player: Player }) {
+export default function GameLayout() {
+    const player = usePlayerStore((s) => s.player);
+
+    if (!player) return (<div>Loading player</div>);
+
     return (
         <div className="grid grid-cols-2 grid-rows-[auto_1fr] h-screen">
             <aside className="border p-4">

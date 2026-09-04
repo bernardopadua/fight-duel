@@ -1,5 +1,5 @@
 import { useState, type SubmitEvent } from "react";
-import { login } from "../api/auth";
+import { login } from "@/api/auth";
 import { useAuth } from "./AuthContext";
 
 export default function Login({ goRegister } : { goRegister: () => void }){
@@ -13,6 +13,7 @@ export default function Login({ goRegister } : { goRegister: () => void }){
         
         try {
             const response = await login(userName, password);
+            if (!response) return;
             auth.login(response.token);
         } catch (err){
             if(err instanceof Error){

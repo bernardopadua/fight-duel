@@ -1,7 +1,10 @@
 import { useState } from "react";
 
+//CONTEXTS
 import { useAuth } from "./auth/AuthContext";
+import { GameProvider } from "./game/GameContext";
 
+//VIEWS
 import Login from "./auth/Login";
 import Register from "./auth/Register";
 import Game from "./game/Game";
@@ -19,10 +22,12 @@ function App() {
                 <Register goLogin={() => setView("login")} />
         );
     }
-    
+
     return (
-        <Game />
-    )
+        <GameProvider>
+            <Game />
+        </GameProvider>
+    );
 }
 
 export default App;
