@@ -84,8 +84,7 @@ class FightStatus:
             "playerLife": self.player_life,
             "playerStamina": self.player_stamina,
             "creatureLife": self.creature_life,
-            "creatureLevel": self.creature_level,
-            "creatureChanceDrop": self.creature_chance_drop
+            "creatureLevel": self.creature_level
         }
         return return_dict
 
@@ -489,7 +488,8 @@ class FightEngine:
         fs = FightStatus(
             is_player_alive=True if p.player_status != Player.PlayerStatus.DEAD else False,
             is_fight_over=True,
-            player_life=p.player_life
+            player_life=p.player_life,
+            player_stamina=p.player_stamina
         )
 
         if cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
@@ -555,11 +555,15 @@ class FightEngine:
                 p.save(update_fields=["player_stamina"])
             else:
                 return None
-        if unlock_fight and \
-            cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
-        :
-            fs.is_fight_over = True
-            cls.unlock_finish_fight_pve(fight_id, fs)
+
+            def unlock_fight_pve():
+                if unlock_fight and \
+                    cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
+                :
+                    fs.is_fight_over = True
+                    cls.unlock_finish_fight_pve(fight_id, fs)
+
+            transaction.on_commit(unlock_fight_pve)
 
         return fs
 
@@ -595,21 +599,21 @@ class FightEngine:
             fs.player_life = p.player_life
 
             unlock_fight = False
+            if p.player_life <= 0:
+                p.player_status = Player.PlayerStatus.DEAD
+                unlock_fight = True
+                fs.is_player_alive = False
+                PlayerEngine.player_dead_penalty(p)
 
-            with transaction.atomic():
-                if p.player_life <= 0:
-                    p.player_status = Player.PlayerStatus.DEAD
-                    unlock_fight = True
-                    fs.is_player_alive = False
-                    PlayerEngine.player_dead_penalty(p)
+            p.save(update_fields=["player_status", "player_life"])
 
-                p.save(update_fields=["player_status", "player_life"])
+            def unlock_fight_pve():
+                if cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
+                    fs.is_fight_over = True
+                    cls.unlock_finish_fight_pve(fight_id, fs)
 
-        if unlock_fight and \
-            cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
-        :
-            fs.is_fight_over = True
-            cls.unlock_finish_fight_pve(fight_id, fs)
+            if unlock_fight:
+                transaction.on_commit(unlock_fight_pve)
 
         return fs
 
@@ -707,10 +711,14 @@ class FightEngine:
             else:
                 return None, None
 
-        if unlock_fight and cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
-            fs.is_fight_over = True
-            fs_o.is_fight_over = True
-            cls.unlock_finish_fight_pvp(fight_id, player_id, fs=fs, fs_o=fs_o)
-            return None, None
+            def unlock_fight_pvp():
+                if cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
+                    fs.is_fight_over = True
+                    fs_o.is_fight_over = True
+                    cls.unlock_finish_fight_pvp(fight_id, player_id, fs=fs, fs_o=fs_o)
+
+            if unlock_fight:
+                transaction.on_commit(unlock_fight_pvp)
+                return None, None
 
         return fs, fs_o

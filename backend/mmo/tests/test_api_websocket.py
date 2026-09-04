@@ -341,7 +341,9 @@ class MMOPlayerFightTests(TestCase):
         self.player.player_stamina = 99999
         self.player.save(update_fields=['player_power', 'player_stamina'])
 
-        fst = FightEngine.attack_monster(fs.fight_id)
+        with self.captureOnCommitCallbacks(execute=True):
+            fst = FightEngine.attack_monster(fs.fight_id)
+
         self.assertIsNotNone(fst)
         self.assertTrue(fst.is_fight_over)
         self.assertTrue(fst.is_player_alive)
@@ -378,7 +380,9 @@ class MMOPlayerFightTests(TestCase):
         self.assertIn("itemName", items[0])
         self.assertDictEqual(items[0], self.item_armour.to_dict())
 
-        fst = FightEngine.attack_player(fs.fight_id)
+        with self.captureOnCommitCallbacks(execute=True):
+            fst = FightEngine.attack_player(fs.fight_id)
+
         self.assertIsNotNone(fst)
         self.assertFalse(fst.is_player_alive)
         self.assertTrue(fst.is_monster_alive)
@@ -665,6 +669,197 @@ class MMOConsumerTests(TransactionTestCase):
         
         await self.player.arefresh_from_db()
         self.assertIsNone(self.player.player_world)
+
+    async def test_websocket_salvage_item_str_id(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({
+            'action': ToServerActions.LOOT,
+            'data': [self.item_armour.id, self.item_life_potion.id]
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': 'abc'
+        })
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.disconnect()
+
+    async def test_websocket_salvage_item_wrong_inventory_id(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({
+            'action': ToServerActions.LOOT,
+            'data': [self.item_armour.id, self.item_life_potion.id]
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': 111
+        })
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.disconnect()
+
+
+    async def test_websocket_salvage_item_list(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({
+            'action': ToServerActions.LOOT,
+            'data': [self.item_armour.id, self.item_life_potion.id]
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': ['abc', 111]
+        })
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.disconnect()
+
+    async def test_websocket_salvage_item_get_currency(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({
+            'action': ToServerActions.LOOT,
+            'data': [self.item_armour.id, self.item_life_potion.id]
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+
+        armour_inv = await PlayerInventory.objects.filter(
+            player=self.player,
+            item=self.item_armour
+        ).afirst()
+        self.assertIsNotNone(armour_inv)
+        
+        potion_inv = await PlayerInventory.objects.filter(
+            player=self.player,
+            item=self.item_life_potion
+        ).afirst()
+        self.assertIsNotNone(potion_inv)
+
+        last_currency = self.player.player_currency
+
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': armour_inv.id
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.EARNED_CURRENCY)
+        self.assertIn('data', response)
+        self.assertIn('currency', response['data'])
+        self.assertIsNotNone(response['data']['currency'])
+
+        await self.player.arefresh_from_db()
+        self.assertEqual(self.player.player_currency, last_currency + response['data']['currency'])
+        last_currency = self.player.player_currency
+
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': potion_inv.id
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.EARNED_CURRENCY)
+        self.assertIn('data', response)
+        self.assertIn('currency', response['data'])
+        self.assertIsNotNone(response['data']['currency'])
+
+        await self.player.arefresh_from_db()
+        self.assertEqual(self.player.player_currency, last_currency + response['data']['currency'])
+
+        await communicator.disconnect()
+
+    async def test_websocket_salvage_item_equipped(self):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({
+            'action': ToServerActions.LOOT,
+            'data': [self.item_armour.id, self.item_life_potion.id]
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+
+        armour_inv = await PlayerInventory.objects.filter(
+            player=self.player,
+            item=self.item_armour
+        ).afirst()
+        self.assertIsNotNone(armour_inv)
+        
+        self.player.player_power = 10
+        self.player.player_equipped_armour = armour_inv
+        self.player.player_max_life = await sync_to_async(PlayerEngine.get_player_calculated_life)(self.player)
+        await self.player.asave(update_fields=['player_equipped_armour', 'player_power', 'player_max_life'])
+
+        last_currency = self.player.player_currency
+        last_max_life = self.player.player_max_life
+
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': armour_inv.id
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.EARNED_CURRENCY)
+        self.assertIn('data', response)
+        self.assertIn('currency', response['data'])
+        self.assertIsNotNone(response['data']['currency'])
+
+        await self.player.arefresh_from_db()
+        self.assertEqual(self.player.player_currency, last_currency + response['data']['currency'])
+        self.assertLess(self.player.player_max_life, last_max_life)
+
+        await communicator.disconnect()
+
+    @patch('mmo.consumers.monster_attack.apply_async')
+    async def test_websocket_salvage_while_in_fight(self, mock_monster_attack):
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({
+            'action': ToServerActions.LOOT,
+            'data': [self.item_armour.id, self.item_life_potion.id]
+        })
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+
+        armour_inv = await PlayerInventory.objects.filter(
+            player=self.player,
+            item=self.item_armour
+        ).afirst()
+        self.assertIsNotNone(armour_inv)
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        mock_monster_attack.assert_called_once()
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+
+        await communicator.send_json_to({
+            'action': ToServerActions.SALVAGE_ITEM,
+            'data': armour_inv.id
+        })
+        self.assertTrue(await communicator.receive_nothing())
+
+        await communicator.disconnect()
 
     @patch('mmo.consumers.monster_attack.apply_async')
     async def test_attack_no_stamina(self, mock_monster_attack):

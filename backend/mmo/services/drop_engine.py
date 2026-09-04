@@ -80,6 +80,30 @@ class DropEngine:
     def calculate_currency(creature_level: int) -> Currency:
         return random.randint(int(creature_level * 8), int(creature_level * 12))
 
+    @staticmethod
+    def calculate_currency_from_salvage(item_power: int, item_weight: int, *, is_consumable: bool = False) -> Currency:
+        if is_consumable:
+            base = max(1, item_power * 0.2)
+            if item_power >= 80:
+                mult = random.uniform(1.5, 2.0)
+            elif item_power >= 50:
+                mult = random.uniform(1.2, 1.4)
+            else:
+                mult = random.uniform(0.8, 1.1)
+            return max(1, int(base * mult))
+
+
+        ratio = item_power / max(1, item_weight)
+        base = max(1, item_power * 5)
+        if ratio >= 0.7:
+            mult = random.uniform(1.8, 2.5)
+        elif ratio >= 0.4:
+            mult = random.uniform(1.3, 1.7)
+        else:
+            mult = random.uniform(0.8, 1.2)
+        
+        return max(1, int(base * mult))
+
     @classmethod
     def drop_items(cls, creature_level: int, creature_chance_drop: int) -> tuple[list[Item], Currency]:
         if random.randint(1, 100) > creature_chance_drop:

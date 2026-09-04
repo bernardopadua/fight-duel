@@ -36,6 +36,8 @@ class ToClientActions:
     FIGHT_FINISH = "fight.finish"
     INVENTORY_UPDATE = "inventory.update"
 
+    EARNED_CURRENCY = "earned.currency"
+
     PLAYER_REVIVE = "player.revive"
     PLAYER_RECOVER_STATUS = "player.recover.status"
 
@@ -52,6 +54,7 @@ class ToServerActions:
     FLEE = "flee"
     LOOT = "loot"
     USE_ITEM = "use.item"
+    SALVAGE_ITEM = "salvage.item"
     GET_INVENTORY = "get.inventory"
 
 class FightDuelConsumer(AsyncWebsocketConsumer):
@@ -172,7 +175,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             ToServerActions.FLEE: self._flee,
             ToServerActions.LOOT: self._loot,
             ToServerActions.USE_ITEM: self._use_item,
-            ToServerActions.GET_INVENTORY: self._get_inventory
+            ToServerActions.GET_INVENTORY: self._get_inventory,
+            ToServerActions.SALVAGE_ITEM: self._salvage_item
         }.get(data.get("action", ''))
 
         if handler:
@@ -321,6 +325,20 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             "data": data
         }))
 
+    async def player_earned_currency(self, event: dict) -> None:
+        if not 'data' in event:
+            logger.error('No data for player %s earned currency', self.user.id)
+            return
+        if not isinstance(event['data'], dict):
+            logger.error('Invalid data for player %s earned currency', self.user.id)
+            return
+
+        data = event['data']
+        await self.send(json.dumps({
+            "action": ToClientActions.EARNED_CURRENCY,
+            "data": data
+        }))
+
     # ACTIONS
     async def _enter_world(self, data: dict) -> None:
         world_id = data.get("data") or None
@@ -444,6 +462,20 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             "action": ToClientActions.INVENTORY_UPDATE,
             "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
         }))
+
+    async def _salvage_item(self, data: dict) -> None:
+        if 'data' not in data:
+            logger.error("No data for user %s salvage item", self.user.id)
+            return
+        if not isinstance(data['data'], int):
+            logger.error("Invalid data for user %s salvage item", self.user.id)
+            return
+        if self.fight_id:
+            logger.error("User %s is in a fight, cannot salvage item", self.user.id)
+            return
+
+        inventory_id = data['data']
+        await sync_to_async(PlayerInventoryEngine.salvage_item)(self.player_id, self.user.id, inventory_id)
 
     async def _get_inventory(self, data: dict) -> None:
         await self.send(json.dumps({
