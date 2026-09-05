@@ -4,11 +4,13 @@ import { createContext, useContext } from "react";
 import type { FightService } from "@/game/services/fight-service";
 import type { WebSocketService } from "@/game/services/ws-service";
 import type { PlayerService } from "@/game/services/player-service";
+import type { WorldService } from "@/game/services/world-service";
 
 export interface GameServices {
     websocketService: WebSocketService;
     fightService: FightService;
     playerService: PlayerService;
+    worldService: WorldService;
 };
 
 export const GameContext = createContext<GameServices | null>(null);

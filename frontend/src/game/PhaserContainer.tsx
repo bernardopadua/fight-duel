@@ -1,7 +1,10 @@
 import { useRef, useEffect } from 'react';
 import Phaser from 'phaser';
 
-import { WorldScene } from './scenes/world-scene';
+//SCENES
+import { BootScene } from '@/game/scenes/boot-scene';
+import { WorldScene } from '@/game/scenes/world-scene';
+import { FightScene } from '@/game/scenes/fight-scene';
 
 export function PhaserContainer() {
     const phaserContainer = useRef<HTMLDivElement | null>(null);
@@ -14,11 +17,12 @@ export function PhaserContainer() {
             parent: phaserContainer.current,
             backgroundColor: '#0f172a',
             scale: {
-                mode: Phaser.Scale.RESIZE, // Faz o canvas se ajustar à tela toda
-                width: '100%',
-                height: '100%',
+                mode: Phaser.Scale.FIT,
+                width: 1280,
+                height: 720,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
             },
-            scene: [WorldScene],
+            scene: [BootScene, WorldScene, FightScene],
             physics: {
                 default: 'arcade',
                 arcade: { gravity: { x: 0, y: 0 }, debug: false },

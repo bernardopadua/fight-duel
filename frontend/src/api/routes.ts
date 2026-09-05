@@ -6,6 +6,8 @@ const ROUTES = {
 
     getPlayer: () => `${API_BASE_URL}/api/mmo/player/`,
     createPlayer: () => `${API_BASE_URL}/api/mmo/create/player/`,
+
+    getWorlds: () => `${API_BASE_URL}/api/mmo/worlds/`,
 };
 
 export { ROUTES };

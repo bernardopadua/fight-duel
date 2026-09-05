@@ -12,7 +12,8 @@ import GameLayout from '@/game/GameLayout';
 type PlayerStateView = 
     | { status: "loading" } 
     | { status: "no-player" } 
-    | { status: "has-player" };
+    | { status: "has-player" }
+    | { status: "no-worlds" };
 
 function Game(){
     const auth = useAuth();
@@ -27,7 +28,13 @@ function Game(){
             services.playerService.getPlayer(auth.token)
             .then((hasPlayer) => {
                 if (hasPlayer) {
-                    setGameState({ status: "has-player" });
+                    services.worldService.fetchWorlds(auth.token)
+                    .then((gotWorlds) => { 
+                        if(!gotWorlds) 
+                            setGameState({ status: "no-worlds" }); 
+                        else
+                            setGameState({ status: "has-player" }); 
+                    });
                 } else {
                     setGameState({ status: "no-player" });
                 }
@@ -39,10 +46,13 @@ function Game(){
 
     return (
         gameState.status === "loading" ? 
-            <p>Loading...</p> : 
-            gameState.status === "no-player" ?
-                <PlayerCreation /> :
-                <GameLayout />
+            <p>Loading...</p> 
+        : gameState.status === "no-player" ?
+            <PlayerCreation /> 
+        : gameState.status === "has-player" ?
+            <GameLayout />
+        : 
+            <p>No worlds available</p>
     );
 };
 

@@ -1,7 +1,7 @@
 import { ApiError, callFetch } from "./api";
 
 import { ROUTES } from "./routes";
-import type { Player } from "../game/types";
+import type { Player } from "@/game/types";
 
 import type { PlayerCreationPayload } from "./types";
 

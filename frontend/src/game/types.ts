@@ -1,4 +1,5 @@
 interface WorldInfo {
+    id: number;
     worldName: string;
     worldMinLevel: number;
     worldMaxLevel: number;
@@ -31,4 +32,4 @@ interface Player {
     playerWorldInfo: WorldInfo | null
 }
 
-export type { Player };
+export type { Player, WorldInfo };

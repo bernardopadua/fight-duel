@@ -10,12 +10,14 @@ import { GameContext } from '@/game/game-context';
 import { createWebSocketService } from '@/game/services/ws-service';
 import { createFightService } from '@/game/services/fight-service';
 import { createPlayerService } from '@/game/services/player-service';
+import { createWorldService } from '@/game/services/world-service';
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
     const [services] = useState<GameServices>(() => ({
         websocketService: createWebSocketService(),
         fightService: createFightService(),
-        playerService: createPlayerService()
+        playerService: createPlayerService(),
+        worldService: createWorldService()
     }));
 
     useEffect(() => {
