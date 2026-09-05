@@ -4,13 +4,6 @@ interface WorldInfo {
     worldMaxLevel: number;
 };
 
-/*interface Creature {
-    id: number
-    creatureName: string
-    creatureLevel: number
-    creatureLife: number
-};*/
-
 interface Item {
     id: number
     itemName: string

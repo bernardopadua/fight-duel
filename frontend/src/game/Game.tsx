@@ -1,13 +1,13 @@
 //REACT
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 //CONTEXT
-import { useAuth } from "@/auth/AuthContext";
-import { useGameContext } from "./GameContext";
+import { useAuth } from '@/auth/auth-context';
+import { useGameContext } from '@/game/game-context';
 
 //COMPONENTS
-import PlayerCreation from "./PlayerCreation";
-import GameLayout from "./GameLayout";
+import PlayerCreation from '@/game/PlayerCreation';
+import GameLayout from '@/game/GameLayout';
 
 type PlayerStateView = 
     | { status: "loading" } 
@@ -24,12 +24,18 @@ function Game(){
         if(!auth.token) return;
 
         if (auth.token && !ignore) {
-            services.playerService.getPlayer(auth.token);
-            setGameState({ status: "has-player" });
+            services.playerService.getPlayer(auth.token)
+            .then((hasPlayer) => {
+                if (hasPlayer) {
+                    setGameState({ status: "has-player" });
+                } else {
+                    setGameState({ status: "no-player" });
+                }
+            });
         }
 
         return () => { ignore = true; }
-    }, []);
+    }, [auth.token, services.playerService]);
 
     return (
         gameState.status === "loading" ? 

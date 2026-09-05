@@ -1,28 +1,26 @@
-interface WebSocketMessage {
-    action: string;
-    data: unknown;
-};
+//TYPES
+import type { AnyMessage, SendMessage } from "@/game/services/ws-messages";
 
 export interface WebSocketService {
     connect: () => void;
-    send: <T extends WebSocketMessage>(message: T) => void;
-    subscribe: <T extends WebSocketMessage>(action: string, callback: (message: T) => void) => void;
+    send: <K extends SendMessage>(message: K) => void;
+    subscribe: <K extends AnyMessage["action"]>(action: K, callback: (message: Extract<AnyMessage, { action: K }>) => void) => void;
     disconnect: () => void;
 };
 
 export function createWebSocketService(): WebSocketService {
     let ws: WebSocket | null = null;
-    const listeners = new Map<string, Set<(message: any) => void>>();
+    const listeners = new Map<string, Set<(message: AnyMessage) => void>>();
     
     return {
         connect: () => {
             if (ws) return;
 
-            ws = new WebSocket("ws://localhost:8000");
+            ws = new WebSocket(import.meta.env.VITE_WS_URL);
 
             ws.onmessage = (event) => {
                 try {
-                    const message = JSON.parse(event.data) as WebSocketMessage;
+                    const message = JSON.parse(event.data);
 
                     if (!message.action) return;
                     listeners.get(message.action)?.forEach((cb) => cb(message));
@@ -42,7 +40,7 @@ export function createWebSocketService(): WebSocketService {
         },
         subscribe: (action, callback) => {
             if (!listeners.get(action)) listeners.set(action, new Set());
-            listeners.get(action)?.add(callback);
+            listeners.get(action)?.add(callback as (message: AnyMessage) => void);
         },
         disconnect: () => {
             

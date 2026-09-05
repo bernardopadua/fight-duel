@@ -1,6 +1,6 @@
 import { useState, type SubmitEvent } from "react";
 import { login } from "@/api/auth";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "@/auth/auth-context";
 
 export default function Login({ goRegister } : { goRegister: () => void }){
     const auth = useAuth();

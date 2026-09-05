@@ -5,21 +5,20 @@ import { usePlayerStore } from '@/game/store/player-store';
 import { getPlayer } from "@/api/player";
 
 export interface PlayerService {
-    getPlayer: (token: string) => void;
+    getPlayer: (token: string) => Promise<boolean>;
 };
 
 export function createPlayerService(): PlayerService {
-    const setPlayer = usePlayerStore((s) => s.setPlayer);
 
     return {
         getPlayer: async (token: string) => {
-            getPlayer(token)
-                .then((player) => { 
-                    if (!player) {
-                        return;
-                    }
-                    setPlayer(player);
-                });
+            const player = await getPlayer(token);
+            if (player) {
+                usePlayerStore.getState().setPlayer(player);
+                return true;
+            } else {
+                return false;
+            }
         }
     };
 };

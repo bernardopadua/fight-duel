@@ -1,14 +1,14 @@
-import { useActionState } from "react";
+import { useActionState } from 'react';
 
 //CONTEXT
-import { useAuth } from "@/auth/AuthContext";
+import { useAuth } from '@/auth/auth-context';
 
 //TYPES
-import type { PlayerCreationPayload } from "@/api/types";
+import type { PlayerCreationPayload } from '@/api/types';
 
 //SERVICES
-import { createPlayer } from "@/api/player";
-import { usePlayerStore } from "@/game/store/player-store";
+import { createPlayer } from '@/api/player';
+import { usePlayerStore } from '@/game/store/player-store';
 
 export default function PlayerCreation(){
     const auth = useAuth();

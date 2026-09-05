@@ -1,13 +1,13 @@
 import { useState } from "react";
 
 //CONTEXTS
-import { useAuth } from "./auth/AuthContext";
-import { GameProvider } from "./game/GameContext";
+import { useAuth } from "@/auth/auth-context";
+import { GameProvider } from "@/game/GameProvider";
 
 //VIEWS
-import Login from "./auth/Login";
-import Register from "./auth/Register";
-import Game from "./game/Game";
+import Login from "@/auth/Login";
+import Register from "@/auth/Register";
+import Game from "@/game/Game";
 
 type View = "login" | "register" | "game";
 
