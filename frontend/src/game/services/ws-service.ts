@@ -5,6 +5,7 @@ export interface WebSocketService {
     connect: () => void;
     send: <K extends SendMessage>(message: K) => void;
     subscribe: <K extends AnyMessage["action"]>(action: K, callback: (message: Extract<AnyMessage, { action: K }>) => void) => void;
+    isConnected: () => boolean;
     disconnect: () => void;
 };
 
@@ -42,6 +43,7 @@ export function createWebSocketService(): WebSocketService {
             if (!listeners.get(action)) listeners.set(action, new Set());
             listeners.get(action)?.add(callback as (message: AnyMessage) => void);
         },
+        isConnected: () => ws?.readyState === WebSocket.OPEN,
         disconnect: () => {
             
         },

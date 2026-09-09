@@ -4,8 +4,8 @@ import { useAuth } from "@/auth/auth-context";
 
 export default function Login({ goRegister } : { goRegister: () => void }){
     const auth = useAuth();
-    const [userName, setUserName] = useState<string>("");
-    const [password, setPassword] = useState<string>("");
+    const [userName, setUserName] = useState<string>("test");
+    const [password, setPassword] = useState<string>("testword");
     const [error, setError] = useState<string|null>(null);
 
     const handleSubmit = async (e: SubmitEvent) => {

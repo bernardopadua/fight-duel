@@ -7,8 +7,13 @@ import regionsHighlight from '@/game/data/regions-highligh.json';
 // STORE
 import { useWorldStore } from '@/game/store/world-store';
 
+// COMPONENTS
+import { ImageButton } from '@/game/objects/image-button';
+
 export class WorldScene extends Phaser.Scene {
-    private newText!: Phaser.GameObjects.Text;
+    private activeHero?: Phaser.GameObjects.Sprite;
+    private activeWorldWaypoint?: Phaser.GameObjects.Arc;
+    private enterWorldBtn!: ImageButton;
 
     constructor() {
         super({ key: 'WorldScene' });
@@ -16,6 +21,31 @@ export class WorldScene extends Phaser.Scene {
     preload() {
     }
     create() {
+        //Camera setBounds
+        this.cameras.main.setZoom(0.8);
+
+        //Initializing Aseprite
+        this.anims.createFromAseprite('player-sprite');
+        
+        //World Selection
+        this.enterWorldBtn = new ImageButton(
+            this,
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 200, 
+            'btn-world-select',
+            'Enter World',
+            {
+                width: 300,
+                height: 75,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '24px'
+                },
+                onClick: () => {
+                    console.log('Enter World');
+                }
+            }
+        ).setVisible(false).setDepth(2);
         const bg = this.add.image(0, 0, 'world-map').setOrigin(0, 0);
         bg.setDisplaySize(1280, 720);
 
@@ -44,9 +74,10 @@ export class WorldScene extends Phaser.Scene {
                 .setDisplaySize(region.radius * 2.8, region.radius * 2.8)
                 .setBlendMode(Phaser.BlendModes.ADD)
                 .setAlpha(0.01);
+            const worldWaypoint = this.add.image(region.x, region.y, 'world-waypoint');
 
             const offsetY = region.y + 60 > this.scale.height ? -60 : 50;
-            const worldCard = this.add.container(region.x, region.y);
+            const worldCard = this.add.container(region.x, region.y).setDepth(1);
             const background = this.add.image(0, 0, 'world-selector').setDisplaySize(
                 150, 85
             ).setAlpha(0.9);
@@ -56,14 +87,27 @@ export class WorldScene extends Phaser.Scene {
                 `${world?.worldName}\nLevel: ${world.worldMinLevel}-${world.worldMaxLevel}`, 
                 { 
                     fontSize: '14px',
-                    align: 'center',
+                    align: 'center'
                 }
             ).setOrigin(0.5);
 
             worldCard.add([background, worldDescription]);
             worldCard.setAlpha(0.01);
 
+            //World Effects
+            this.tweens.add({
+                targets: worldWaypoint,
+                y: '-=15',
+                duration: 1000,
+                ease: 'Sine.easeInOut',
+                yoyo: true,
+                repeat: -1,
+                angle: 60
+            });
+
             regionHighlight.on('pointerover', () => {
+                this.tweens.killTweensOf([pointLight, worldCard]);
+
                 this.tweens.add({
                     targets: pointLight,
                     alpha: 1.0,
@@ -72,7 +116,7 @@ export class WorldScene extends Phaser.Scene {
                 });
                 this.tweens.add({
                     targets: worldCard,
-                    alpha: 1,
+                    alpha: 1.0,
                     y: region.y + offsetY,
                     duration: 150,
                     ease: 'Cubic.easeOut'
@@ -94,15 +138,61 @@ export class WorldScene extends Phaser.Scene {
                     ease: 'Cubic.easeOut'
                 });
             });
+            regionHighlight.on('pointerdown', ()=>{
+                if (this.activeWorldWaypoint == regionHighlight) return;
+
+                if (this.input.keyboard)
+                    this.input.keyboard.enabled = false;
+
+                this.activeWorldWaypoint = regionHighlight;
+                this.activeHero?.destroy();
+                this.activeHero = this.add.sprite(region.x, region.y-150, 'player-sprite').setDisplaySize(150, 150);
+                this.tweens.add({
+                    targets: this.activeHero,
+                    y: region.y,
+                    duration: 200,
+                    ease: 'Bounce.easeOut',
+                    onComplete: ()=>{
+                        if (this.input.keyboard)
+                            this.input.keyboard.enabled = true;
+                        
+                        if(!this.activeHero) return;
+                        this.activeHero.play({ key: 'Idle', repeat: -1 });
+                        this.cameras.main.pan(region.x, region.y, 200, 'Cubic.easeOut');
+                        this.cameras.main.zoomTo(1.2, 200, 'Cubic.easeOut');
+                        this.enterWorldBtn.setPosition(
+                            region.x,
+                            region.y + 180
+                        ).setVisible(true).setDisabled();
+                    }
+                });
+            });
         });
 
+        // Keyboard events
         this.input.keyboard?.once('keydown-SPACE', ()=>{
             this.scene.start('FightScene',{
                 creatureName: "Vagabonds",
                 creatureLevel: 12
             });
         });
+        this.input.keyboard?.on('keydown-ESC', ()=>{
+            this.tweens.add({
+                targets: this.activeHero,
+                y: this.activeHero.y-200,
+                duration: 250,
+                ease: 'Quadratic.easeOut',
+                onComplete: ()=>{
+                    if(!this.activeHero) return;
+                    this.activeHero?.destroy();
+                    this.activeWorldWaypoint = undefined;
+                }
+            });
+            this.cameras.main.zoomTo(0.8, 500, 'Cubic.easeOut', true);
+            this.cameras.main.pan(this.cameras.main.centerX, this.cameras.main.centerY, 500, 'Cubic.easeOut', true);
+            this.enterWorldBtn.setVisible(false);
+        });
     }
-    update() {
+    update() {            
     }
 }

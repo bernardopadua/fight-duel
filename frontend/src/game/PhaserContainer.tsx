@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import Phaser from 'phaser';
 
 //SCENES
@@ -15,12 +15,12 @@ export function PhaserContainer() {
         const config: Phaser.Types.Core.GameConfig = {
             type: Phaser.AUTO,
             parent: phaserContainer.current,
-            backgroundColor: '#0f172a',
+            transparent: true,
             scale: {
-                mode: Phaser.Scale.FIT,
+                mode: Phaser.Scale.ENVELOP,
                 width: 1280,
                 height: 720,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                autoCenter: Phaser.Scale.CENTER_BOTH
             },
             scene: [BootScene, WorldScene, FightScene],
             physics: {
@@ -39,6 +39,10 @@ export function PhaserContainer() {
     }, []);
 
     return (
-        <div ref={phaserContainer} id="phaser-container" className="absolute inset-0 z-0" />
+        <div ref={phaserContainer} 
+            id="phaser-container" 
+            className="absolute inset-0 z-0" 
+            style={{backgroundImage: "url('https://science.nasa.gov/wp-content/uploads/2023/09/ssc2019-15b-med.jpg')", backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat"}}
+        />
     );
 }

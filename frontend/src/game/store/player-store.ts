@@ -8,6 +8,7 @@ interface PlayerStoreState {
     player: Player | null;
     setPlayer: (player: Player) => void;
     setCurrency: (currency: number) => void;
+    setPlayerLevel: (level: number) => void;
 };
 
 export const usePlayerStore = create<PlayerStoreState>()((set) => ({
@@ -16,6 +17,11 @@ export const usePlayerStore = create<PlayerStoreState>()((set) => ({
     setCurrency: (currency: number) => set((player) => (
         player.player ?
             { player: { ...player.player, playerCurrency: currency } }
+            : { player: null }
+    )),
+    setPlayerLevel: (level: number) => set((player) => (
+        player.player ?
+            { player: { ...player.player, playerLevel: level } }
             : { player: null }
     ))
 }));

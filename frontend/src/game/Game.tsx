@@ -25,6 +25,9 @@ function Game(){
         if(!auth.token) return;
 
         if (auth.token && !ignore) {
+            if(!services.websocketService.isConnected())
+                auth.logout();
+            
             services.playerService.getPlayer(auth.token)
             .then((hasPlayer) => {
                 if (hasPlayer) {
