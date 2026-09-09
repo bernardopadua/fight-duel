@@ -513,15 +513,21 @@ class MMOConsumerTests(TransactionTestCase):
     async def _connect_to_websocket(self, 
         *,
         test_expired_connection: bool = False,
-        test_connected_false: bool = False
+        test_connected_false: bool = False,
+        test_one_time_ticket: str = ""
     ) -> WebsocketCommunicator:
         token_headers = [
             (b'cookie', f'Authorization-JWT={self.token}'.encode()),
         ]
-        communicator = WebsocketCommunicator(
-            application, '/ws/fight/',
-            headers=token_headers
-        )
+        if test_one_time_ticket:
+            communicator = WebsocketCommunicator(
+                application, f'/ws/fight/?one-time={test_one_time_ticket}',
+            )
+        else:
+            communicator = WebsocketCommunicator(
+                application, '/ws/fight/',
+                headers=token_headers
+            )
         connected, _ = await communicator.connect()
 
         if test_expired_connection:
@@ -1376,5 +1382,53 @@ class MMOConsumerTests(TransactionTestCase):
         communicator_2 = await self._connect_to_websocket(test_connected_false=True)
 
         await communicator_1.disconnect()
+        await communicator_2.disconnect()
+
+    async def test_one_time_ticket_connect(self):
+        new_client = APIClient()
+        response = await sync_to_async(new_client.post)(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+        self.assertIn('oneTimeTicket', response.data)
+        self.assertIsNotNone(response.data['oneTimeTicket'])
+        
+        communicator = await self._connect_to_websocket(
+            test_one_time_ticket=response.data['oneTimeTicket']
+        )
+        await communicator.disconnect() 
+
+    async def test_one_time_ticket_wrong_no_connect(self):
+        await self._connect_to_websocket(
+            test_one_time_ticket='sdsdsdsdsd',
+            test_connected_false=True
+        )
+
+    async def test_one_time_ticket_connect_two_times_same_ticket(self):
+        new_client = APIClient()
+        response = await sync_to_async(new_client.post)(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Authorization-JWT', response.cookies)
+        self.assertIn('token', response.data)
+        self.assertIn('oneTimeTicket', response.data)
+        self.assertIsNotNone(response.data['oneTimeTicket'])
+        
+        communicator = await self._connect_to_websocket(
+            test_one_time_ticket=response.data['oneTimeTicket']
+        )
+        await communicator.disconnect() 
+
+        communicator_2 = await self._connect_to_websocket(
+            test_one_time_ticket=response.data['oneTimeTicket'],
+            test_connected_false=True
+        )
         await communicator_2.disconnect()
 
