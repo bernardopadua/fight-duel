@@ -11,6 +11,8 @@ from fkdauth.jwt_auth_utils import (
     JWTError, JWTExpiredError
 )
 
+from mmo.constants import USER_ONE_TIME_WS_CONNECT
+
 class JWTTests(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username='test', email='test@test.com', password='123456')
@@ -92,6 +94,23 @@ class UserLoginTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("Authorization-JWT", response.cookies)
         self.assertIn("token", response.data)
+    
+    def test_user_login_with_one_time_ticket(self):        
+        response = self.client.post(
+            '/api/auth/login/', 
+            {'username': 'test', 'password': '123456'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("Authorization-JWT", response.cookies)
+        self.assertIn("token", response.data)
+        self.assertIn("oneTimeTicket", response.data)
+
+        ticket = response.data['oneTimeTicket']
+        self.assertIsNotNone(ticket)
+        user_id = cache.get(USER_ONE_TIME_WS_CONNECT.format(ticket=ticket))
+        self.assertIsNotNone(user_id)
+        self.assertEqual(user_id, self.user.id)
 
     def test_user_login_wrong_credentials(self):
         response = self.client.post(
