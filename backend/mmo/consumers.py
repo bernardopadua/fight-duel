@@ -24,6 +24,7 @@ class ToClientActions:
     ERROR = "error"
     
     WORLD_ENTER = "world.enter"
+    WORLD_LEAVE = "world.leave"
 
     FIGHT_MATCHMAKING = "fight.matchmaking"
     FIGHT_MATCHMAKING_START = "fight.matchmaking.start"
@@ -352,7 +353,10 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             }))
 
     async def _leave_world(self, data: dict) -> None:
-        await sync_to_async(WorldEngine.leave_world)(self.player_id)
+        if await sync_to_async(WorldEngine.leave_world)(self.player_id):
+            await self.send(json.dumps({
+                'action': ToClientActions.WORLD_LEAVE,
+            }))
 
     async def _change_world(self, data: dict) -> None:
         world_id = data.get("data") or None
