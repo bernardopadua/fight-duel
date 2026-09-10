@@ -1,62 +1,35 @@
 //REACT
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 //CONTEXT
 import { useAuth } from '@/auth/auth-context';
 import { useGameContext } from '@/game/game-context';
 
-//COMPONENTS
-import PlayerCreation from '@/game/PlayerCreation';
-import GameLayout from '@/game/GameLayout';
+// HOOKS
+import { useWebSocketStatus } from '@/game/services/ws-service';
 
-type PlayerStateView = 
-    | { status: "loading" } 
-    | { status: "no-player" } 
-    | { status: "has-player" }
-    | { status: "no-worlds" };
+// GAME COMPONENTS
+import GameLoggedIn from '@/game/GameLoggedIn';
 
 function Game(){
     const auth = useAuth();
     const services = useGameContext();
-    const [gameState, setGameState] = useState<PlayerStateView>({ status: "loading" });
+    const wsStatus = useWebSocketStatus(services.websocketService);
 
-    useEffect(() => {
-        let ignore = false;
-        if(!auth.token) return;
-
-        if (auth.token && !ignore) {
-            if(!services.websocketService.isConnected())
-                auth.logout();
-            
-            services.playerService.getPlayer(auth.token)
-            .then((hasPlayer) => {
-                if (hasPlayer) {
-                    services.worldService.fetchWorlds(auth.token)
-                    .then((gotWorlds) => { 
-                        if(!gotWorlds) 
-                            setGameState({ status: "no-worlds" }); 
-                        else
-                            setGameState({ status: "has-player" }); 
-                    });
-                } else {
-                    setGameState({ status: "no-player" });
-                }
-            });
+    useEffect(()=>{
+        if(wsStatus === "error" || wsStatus === "disconnected"){
+            auth.logout();
         }
+    }, [auth, wsStatus]);
 
-        return () => { ignore = true; }
-    }, [auth.token, services.playerService]);
+    if(wsStatus === "connecting")
+        return (<h2>Game is connecting...</h2>)
 
-    return (
-        gameState.status === "loading" ? 
-            <p>Loading...</p> 
-        : gameState.status === "no-player" ?
-            <PlayerCreation /> 
-        : gameState.status === "has-player" ?
-            <GameLayout />
-        : 
-            <p>No worlds available</p>
-    );
+    if(wsStatus === "error" || wsStatus === "disconnected"){
+        return (<h2>Game disconnected...</h2>)
+    }
+
+    return <GameLoggedIn />;
 };
 
 export default Game;

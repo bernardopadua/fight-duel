@@ -5,11 +5,13 @@ import { AuthContext, type AuthContextValue } from '@/auth/auth-context';
 
 export function AuthProvider({ children }: {children: ReactNode}){
     const [token, setToken] = useState<string | null>(null);
+    const [ticket, setTicket] = useState<string | null>(null);
 
     const value: AuthContextValue = {
         token,
-        login: (t) => setToken(t),
-        logout: () => setToken(null)
+        ticket,
+        login: (token, ticket) => { setToken(token); setTicket(ticket); },
+        logout: () => { setToken(null); setTicket(null); }
     };
    
     return (

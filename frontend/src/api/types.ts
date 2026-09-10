@@ -13,6 +13,7 @@ export type RegisterResponse = RegisterResponseSuccess | RegisterResponseError;
 export interface LoginResponse{
     error?: string;
     token: string;
+    oneTimeTicket: string;
 }
 
 // Payloads

@@ -1,5 +1,8 @@
-import { useRef, useEffect, useMemo } from 'react';
 import Phaser from 'phaser';
+import { useRef, useEffect, useMemo } from 'react';
+
+//CONTEXT
+import { useGameContext } from '@/game/game-context';
 
 //SCENES
 import { BootScene } from '@/game/scenes/boot-scene';
@@ -9,6 +12,8 @@ import { FightScene } from '@/game/scenes/fight-scene';
 export function PhaserContainer() {
     const phaserContainer = useRef<HTMLDivElement | null>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
+
+    const services = useGameContext();
 
     useEffect(() => {
         if (!phaserContainer.current || gameRef.current) return;
@@ -29,6 +34,7 @@ export function PhaserContainer() {
             },
         };
         gameRef.current = new Phaser.Game(config);
+        gameRef.current.registry.set("services", services);
 
         return () => {
             if (gameRef.current) {

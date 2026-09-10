@@ -6,49 +6,44 @@ import regionsHighlight from '@/game/data/regions-highligh.json';
 
 // STORE
 import { useWorldStore } from '@/game/store/world-store';
+import { usePlayerStore } from '@/game/store/player-store';
 
 // COMPONENTS
 import { ImageButton } from '@/game/objects/image-button';
 
+// EVENTBUS
+import { EventBus, GAME_EVENTS } from '@/game/event-bus';
+
+// TYPES
+import type { GameServices } from '@/game/game-context';
+import type { WorldInfo } from '@/game/types';
+
+interface WorldSceneActiveTweens {
+    waypoints: Map<number, Phaser.Tweens.Tween>;
+}
+
 export class WorldScene extends Phaser.Scene {
     private activeHero?: Phaser.GameObjects.Sprite;
     private activeWorldWaypoint?: Phaser.GameObjects.Arc;
+    
+    //Components
     private enterWorldBtn!: ImageButton;
+    private leaveWorldBtn!: ImageButton;
+    private moveInWorldBtn!: ImageButton;
+
+    private activeWorld: WorldInfo | null = null;
+    private selectedWorldId: number = 0;
+
+    private worldTweens: WorldSceneActiveTweens = {
+        waypoints: new Map<number, Phaser.Tweens.Tween>()
+    };
 
     constructor() {
         super({ key: 'WorldScene' });
     }
     preload() {
     }
-    create() {
-        //Camera setBounds
-        this.cameras.main.setZoom(0.8);
-
-        //Initializing Aseprite
-        this.anims.createFromAseprite('player-sprite');
-        
-        //World Selection
-        this.enterWorldBtn = new ImageButton(
-            this,
-            this.cameras.main.centerX, 
-            this.cameras.main.centerY + 200, 
-            'btn-world-select',
-            'Enter World',
-            {
-                width: 300,
-                height: 75,
-                textStyle: {
-                    fontFamily: 'Georgia',
-                    fontSize: '24px'
-                },
-                onClick: () => {
-                    console.log('Enter World');
-                }
-            }
-        ).setVisible(false).setDepth(2);
-        const bg = this.add.image(0, 0, 'world-map').setOrigin(0, 0);
-        bg.setDisplaySize(1280, 720);
-
+    createTextures() {
         if (!this.textures.exists('soft-glow')) {
             const canvas = this.textures.createCanvas('soft-glow', 128, 128);
             if (canvas) {
@@ -62,9 +57,113 @@ export class WorldScene extends Phaser.Scene {
                 canvas.refresh();
             }
         }
+    }
+    createEventsForScene() {
+        const onWorldEnter = (world: WorldInfo) => {
+            this.activeWorld = world;
+            this.worldTweens.waypoints.forEach((waypoint, idx) => {
+                if (idx != this.activeWorld.id) {
+                    const target = waypoint.targets[0] as Phaser.GameObjects.Image;
+                    waypoint.pause();
+                    target.setAlpha(0.01);
+                    
+                    this.enterWorldBtn.setVisible(false);
+                    
+                    this.leaveWorldBtn.setPosition(
+                        this.activeHero.x - this.leaveWorldBtn.width / 2 - 15,
+                        this.activeHero.y + 150
+                    );
+                    this.moveInWorldBtn.setPosition(
+                        this.activeHero.x + this.moveInWorldBtn.width / 2 + 15,
+                        this.activeHero.y + 150
+                    );
+                    this.leaveWorldBtn.setVisible(true);
+                    this.moveInWorldBtn.setVisible(true);
+                }
+            });
+        };
+        EventBus.on(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
 
+        const cleanUp = () => {
+            EventBus.off(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
+        };
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanUp);
+        this.events.once(Phaser.Scenes.Events.DESTROY, cleanUp);
+    }
+    createButtons() {
+        this.enterWorldBtn = new ImageButton(
+            this,
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 200, 
+            'btn-world-select',
+            'Enter World',
+            {
+                width: 300,
+                height: 75,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '24px'
+                }
+            }
+        ).setVisible(false).setDepth(2);
+        this.leaveWorldBtn = new ImageButton(
+            this,
+            this.cameras.main.centerX,
+            this.cameras.main.centerY + 200,
+            'btn-world-select',
+            'Leave World',
+            {
+                width: 200,
+                height: 50,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '14px'
+                }
+            }
+        ).setVisible(false).setDepth(2);
+        this.moveInWorldBtn = new ImageButton(
+            this,
+            this.cameras.main.centerX,
+            this.cameras.main.centerY + 200,
+            'btn-world-select',
+            'Move and Fight',
+            {
+                width: 200,
+                height: 50,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '14px'
+                }
+            }
+        ).setVisible(false).setDepth(2);
+    }
+    create() {
+        const gameServices = this.registry.get('services') as GameServices;
+
+        const getPlayerLevel = () => usePlayerStore.getState().player?.playerLevel || 0;
+        const setPlayerWorld = (worldId: number) => {
+            gameServices.playerService.enterWorld(worldId);
+        };
+
+        //Events World
+        this.createEventsForScene();
+
+        //Camera setBounds
+        this.cameras.main.setZoom(0.8);
+
+        //Create Components
+        this.createButtons();
+
+        //World Selection
+        const bg = this.add.image(0, 0, 'world-map').setOrigin(0, 0);
+        bg.setDisplaySize(1280, 720);
+
+        //Textures
+        this.createTextures();
+
+        // World map highlight regions
         regionsHighlight.forEach((region)=>{
-            const world = useWorldStore.getState().getWorldId(region.id);
+            let world = useWorldStore.getState().getWorldId(region.id);
             const regionHighlight = this.add
                 .circle(region.x, region.y, region.radius, 0xcccc00)
                 .setAlpha(0.01)
@@ -95,7 +194,7 @@ export class WorldScene extends Phaser.Scene {
             worldCard.setAlpha(0.01);
 
             //World Effects
-            this.tweens.add({
+            this.worldTweens.waypoints.set(world.id, this.tweens.add({
                 targets: worldWaypoint,
                 y: '-=15',
                 duration: 1000,
@@ -103,6 +202,11 @@ export class WorldScene extends Phaser.Scene {
                 yoyo: true,
                 repeat: -1,
                 angle: 60
+            }));
+
+            //Buttons events
+            this.enterWorldBtn.setOnClick(()=>{
+                setPlayerWorld(this.selectedWorldId);
             });
 
             regionHighlight.on('pointerover', () => {
@@ -139,6 +243,7 @@ export class WorldScene extends Phaser.Scene {
                 });
             });
             regionHighlight.on('pointerdown', ()=>{
+                this.selectedWorldId = world.id;
                 if (this.activeWorldWaypoint == regionHighlight) return;
 
                 if (this.input.keyboard)
@@ -160,13 +265,24 @@ export class WorldScene extends Phaser.Scene {
                         this.activeHero.play({ key: 'Idle', repeat: -1 });
                         this.cameras.main.pan(region.x, region.y, 200, 'Cubic.easeOut');
                         this.cameras.main.zoomTo(1.2, 200, 'Cubic.easeOut');
+                        
                         this.enterWorldBtn.setPosition(
                             region.x,
                             region.y + 180
-                        ).setVisible(true).setDisabled();
+                        );
+
+                        if (getPlayerLevel() > world.worldMaxLevel || getPlayerLevel() < world.worldMinLevel) {
+                            this.enterWorldBtn.setVisible(true).setDisabled();
+                        } else {
+                            this.enterWorldBtn.setVisible(true).setEnabled();
+                        }
                     }
                 });
             });
+
+            if (this.activeWorld?.id === world.id){
+                regionHighlight.emit('pointerdown');
+            }
         });
 
         // Keyboard events

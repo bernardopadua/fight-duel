@@ -21,6 +21,8 @@ export class BootScene extends Phaser.Scene {
         this.load.aseprite('player-sprite', '/public/sprites/player/Soldier.png', '/public/sprites/player/Soldier.json');
     }
     create() {
+        this.anims.createFromAseprite('player-sprite');
+
         this.scene.start('WorldScene');
     }
 }

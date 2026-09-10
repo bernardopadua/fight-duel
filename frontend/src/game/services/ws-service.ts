@@ -1,23 +1,51 @@
+// REACT
+import { useSyncExternalStore } from 'react';
+
 //TYPES
 import type { AnyMessage, SendMessage } from "@/game/services/ws-messages";
 
 export interface WebSocketService {
-    connect: () => void;
+    connect: (ticket: string|null) => void;
     send: <K extends SendMessage>(message: K) => void;
     subscribe: <K extends AnyMessage["action"]>(action: K, callback: (message: Extract<AnyMessage, { action: K }>) => void) => void;
-    isConnected: () => boolean;
+    subscribeStatus: (cb: () => void) => () => void;
+    getStatus: () => ConnectionStatus;
     disconnect: () => void;
 };
+type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export function createWebSocketService(): WebSocketService {
     let ws: WebSocket | null = null;
-    const listeners = new Map<string, Set<(message: AnyMessage) => void>>();
-    
-    return {
-        connect: () => {
-            if (ws) return;
+    let status: ConnectionStatus = "connecting";
 
-            ws = new WebSocket(import.meta.env.VITE_WS_URL);
+    const listeners = new Map<string, Set<(message: AnyMessage) => void>>();
+    const statusListeners = new Set<() => void>();
+    
+    const setStatus = (newStatus: ConnectionStatus) => {
+        if(status === newStatus) return;
+        status = newStatus;
+        statusListeners.forEach((cb) => cb());
+    };
+
+    return {
+        connect: (ticket?: string) => {
+            if (ws) return;
+            
+            if (ticket){
+                ws = new WebSocket(import.meta.env.VITE_WS_URL + `?one-time=${ticket}`);
+            } else {
+                ws = new WebSocket(import.meta.env.VITE_WS_URL);
+            }
+
+            if (ws.readyState === WebSocket.OPEN){
+                setStatus("connected");
+            } else if (ws.readyState === WebSocket.CLOSED){
+                setStatus("disconnected");
+            } else if (ws.readyState === WebSocket.CONNECTING){
+                setStatus("connecting");
+            } else {
+                setStatus("error");
+            }
 
             ws.onmessage = (event) => {
                 try {
@@ -30,9 +58,9 @@ export function createWebSocketService(): WebSocketService {
                 }
             };
 
-            ws.onopen = () => console.log("WebSocket connected");
-            ws.onclose = () => console.log("WebSocket disconnected");
-            ws.onerror = (err) => console.error("WebSocket error:", err);
+            ws.onopen = () => setStatus("connected");
+            ws.onclose = () => setStatus("disconnected");
+            ws.onerror = () => setStatus("error");
         },
         send: (message) => {
             if (ws) {
@@ -43,9 +71,25 @@ export function createWebSocketService(): WebSocketService {
             if (!listeners.get(action)) listeners.set(action, new Set());
             listeners.get(action)?.add(callback as (message: AnyMessage) => void);
         },
-        isConnected: () => ws?.readyState === WebSocket.OPEN,
+        subscribeStatus: (cb) => {
+            if (!statusListeners.has(cb)) statusListeners.add(cb);
+            return () => { statusListeners.delete(cb); };
+        },
+        getStatus: () => status,
         disconnect: () => {
-            
+            if (ws){
+                ws.onclose = null;
+                ws.onmessage = null;
+                ws.onopen = null;
+                ws.onerror = null;
+                ws.close();
+                ws = null;
+            }
+            setStatus("disconnected");
         },
     };
+}
+
+export function useWebSocketStatus(ws: WebSocketService) {
+    return useSyncExternalStore(ws.subscribeStatus, ws.getStatus);
 }

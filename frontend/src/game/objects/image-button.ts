@@ -8,6 +8,8 @@ interface ButtonConfig {
 export class ImageButton extends Phaser.GameObjects.Container {
     private background: Phaser.GameObjects.Image;
     private label: Phaser.GameObjects.Text;
+    private onClickCallback?: () => void;
+
     constructor(
         scene: Phaser.Scene,
         x: number,
@@ -42,7 +44,7 @@ export class ImageButton extends Phaser.GameObjects.Container {
         this.on('pointerdown', () => scene.tweens.add({ targets: this, scale: 0.95, duration: 50 }));
         this.on('pointerup', () => {
             scene.tweens.add({ targets: this, scale: 1.0, duration: 50 });
-            config?.onClick?.();
+            this.onClickCallback?.();
         });
 
         scene.add.existing(this);
@@ -62,6 +64,11 @@ export class ImageButton extends Phaser.GameObjects.Container {
     public setEnabled(){
         this.label.setColor('#ffffff');
         this.background.setTexture('btn-world-select');
+        return this;
+    }
+
+    public setOnClick(callback: () => void) {
+        this.onClickCallback = callback;
         return this;
     }
 }

@@ -1,29 +1,33 @@
 import { useEffect, useState } from 'react';
 
-//TYPES
+// TYPES
 import type { GameServices } from '@/game/game-context';
 
-//CONTEXT
+// CONTEXT
 import { GameContext } from '@/game/game-context';
+import { useAuth } from '@/auth/auth-context';
 
-//SERVICES
+// SERVICES
 import { createWebSocketService } from '@/game/services/ws-service';
 import { createFightService } from '@/game/services/fight-service';
 import { createPlayerService } from '@/game/services/player-service';
 import { createWorldService } from '@/game/services/world-service';
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
-    const [services] = useState<GameServices>(() => ({
-        websocketService: createWebSocketService(),
-        fightService: createFightService(),
-        playerService: createPlayerService(),
-        worldService: createWorldService()
-    }));
+    const auth = useAuth();
+    const [services] = useState<GameServices>(() => {
+        const ws = createWebSocketService();
+        return {
+            websocketService: ws,
+            fightService: createFightService(),
+            playerService: createPlayerService(ws),
+            worldService: createWorldService()
+        };
+    });
 
     useEffect(() => {
         if (!services) return;
-
-        services.websocketService.connect();
+        services.websocketService.connect(auth.ticket);
         return () => {
             services.websocketService.disconnect();
         }

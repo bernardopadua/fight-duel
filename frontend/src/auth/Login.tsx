@@ -14,7 +14,7 @@ export default function Login({ goRegister } : { goRegister: () => void }){
         try {
             const response = await login(userName, password);
             if (!response) return;
-            auth.login(response.token);
+            auth.login(response.token, response.oneTimeTicket);
         } catch (err){
             if(err instanceof Error){
                 console.error(err.message);

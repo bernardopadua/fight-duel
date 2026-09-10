@@ -1,7 +1,8 @@
+// ZUSTAND
 import { create } from 'zustand';
 
 //TYPES
-import type { Player } from '@/game/types';
+import type { Player, WorldInfo } from '@/game/types';
 
 //INTERFACE
 interface PlayerStoreState {
@@ -9,6 +10,7 @@ interface PlayerStoreState {
     setPlayer: (player: Player) => void;
     setCurrency: (currency: number) => void;
     setPlayerLevel: (level: number) => void;
+    setPlayerWorld: (world: WorldInfo) => void;
 };
 
 export const usePlayerStore = create<PlayerStoreState>()((set) => ({
@@ -23,5 +25,13 @@ export const usePlayerStore = create<PlayerStoreState>()((set) => ({
         player.player ?
             { player: { ...player.player, playerLevel: level } }
             : { player: null }
-    ))
+    )),
+    setPlayerWorld: (world: WorldInfo) => {
+        set((player) => player.player ? {
+            player: {
+                ...player.player,
+                playerWorldInfo: world
+            }
+        } : { player: null });
+    }
 }));
