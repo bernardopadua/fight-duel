@@ -2,6 +2,7 @@
 .env.prod
 .env.docker
 
+frontend/.env
 backend/.venv
 backend/.data
 backend/.redis

@@ -19,7 +19,8 @@ import type { GameServices } from '@/game/game-context';
 import type { WorldInfo } from '@/game/types';
 
 interface WorldSceneActiveTweens {
-    waypoints: Map<number, Phaser.Tweens.Tween>;
+    waypoint: Phaser.Tweens.Tween;
+    regionHighLight: Phaser.GameObjects.Arc;
 }
 
 export class WorldScene extends Phaser.Scene {
@@ -34,9 +35,7 @@ export class WorldScene extends Phaser.Scene {
     private activeWorld: WorldInfo | null = null;
     private selectedWorldId: number = 0;
 
-    private worldTweens: WorldSceneActiveTweens = {
-        waypoints: new Map<number, Phaser.Tweens.Tween>()
-    };
+    private worldTweens: Map<number, WorldSceneActiveTweens> = new Map<number, WorldSceneActiveTweens>();
 
     constructor() {
         super({ key: 'WorldScene' });
@@ -61,11 +60,14 @@ export class WorldScene extends Phaser.Scene {
     createEventsForScene() {
         const onWorldEnter = (world: WorldInfo) => {
             this.activeWorld = world;
-            this.worldTweens.waypoints.forEach((waypoint, idx) => {
+            this.worldTweens.forEach((worldTween, idx) => {
+                const waypoint = worldTween.waypoint;
+                const region = worldTween.regionHighLight;
                 if (idx != this.activeWorld.id) {
                     const target = waypoint.targets[0] as Phaser.GameObjects.Image;
                     waypoint.pause();
-                    target.setAlpha(0.01);
+                    target.setVisible(false);
+                    region.setVisible(false);
                     
                     this.enterWorldBtn.setVisible(false);
                     
@@ -84,8 +86,30 @@ export class WorldScene extends Phaser.Scene {
         };
         EventBus.on(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
 
+        const onWorldLeave = () => {
+            this.worldTweens.forEach((worldTween, idx) => {
+                const waypoint = worldTween.waypoint;
+                const region = worldTween.regionHighLight;
+                if (idx !== this.activeWorld.id){
+                    const target = waypoint.targets[0] as Phaser.GameObjects.Image;
+                    target.setVisible(true);
+                    waypoint.restart();
+                    region.setVisible(true);
+                } else {
+                    worldTween.waypoint.restart();
+                }
+            });
+            
+            this.activeWorld = null;
+            this.input.keyboard?.emit('keydown-ESC');
+            this.leaveWorldBtn.setVisible(false);
+            this.moveInWorldBtn.setVisible(false);
+        };
+        EventBus.on(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
+
         const cleanUp = () => {
             EventBus.off(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
+            EventBus.off(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
         };
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanUp);
         this.events.once(Phaser.Scenes.Events.DESTROY, cleanUp);
@@ -194,19 +218,25 @@ export class WorldScene extends Phaser.Scene {
             worldCard.setAlpha(0.01);
 
             //World Effects
-            this.worldTweens.waypoints.set(world.id, this.tweens.add({
-                targets: worldWaypoint,
-                y: '-=15',
-                duration: 1000,
-                ease: 'Sine.easeInOut',
-                yoyo: true,
-                repeat: -1,
-                angle: 60
-            }));
+            this.worldTweens.set(world.id, {
+                waypoint: this.tweens.add({
+                    targets: worldWaypoint,
+                    y: '-=15',
+                    duration: 1000,
+                    ease: 'Sine.easeInOut',
+                    yoyo: true,
+                    repeat: -1,
+                    angle: 60
+                }),
+                regionHighLight: regionHighlight
+            });
 
             //Buttons events
             this.enterWorldBtn.setOnClick(()=>{
                 setPlayerWorld(this.selectedWorldId);
+            });
+            this.leaveWorldBtn.setOnClick(()=>{
+                gameServices.playerService.leaveWorld();
             });
 
             regionHighlight.on('pointerover', () => {

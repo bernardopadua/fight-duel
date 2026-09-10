@@ -71,7 +71,11 @@ export interface WebSocketWorldEnterMessage extends WebSocketMessage {
     }
 };
 
-export type WorldMessage = WebSocketWorldEnterMessage;
+export interface WebSocketWorldLeaveMessage extends WebSocketMessage {
+    action: "world.leave";
+};
+
+export type WorldMessage = WebSocketWorldEnterMessage | WebSocketWorldLeaveMessage;
 
 export interface WebSocketInventoryUpdate extends WebSocketMessage {
     action: "inventory.update";

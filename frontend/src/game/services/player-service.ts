@@ -7,7 +7,7 @@ import type { WebSocketService } from "@/game/services/ws-service";
 // WSocket MESSAGE
 import type { 
     WebSocketWorldEnterMessage,
-    WebSocketSendEnterWorldMessage
+    WebSocketWorldLeaveMessage
  } from '@/game/services/ws-messages';
 
 // EVENT EMITTER
@@ -28,8 +28,13 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         usePlayerStore.getState().setPlayerWorld(message.data);
         EventBus.emit(GAME_EVENTS.ENTER_WORLD, message.data);
     };
+    const respLeaveWorld = (message: WebSocketWorldLeaveMessage) => {
+        usePlayerStore.getState().setPlayerWorld(null);
+        EventBus.emit(GAME_EVENTS.LEAVE_WORLD);
+    };
 
     ws.subscribe('world.enter', respEnterWorld);
+    ws.subscribe('world.leave', respLeaveWorld);
 
     return {
         enterWorld: (worldId: number) => {

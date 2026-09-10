@@ -907,7 +907,7 @@
   "meta": {
     "app": "https://github.com/LibreSprite/LibreSprite/",
     "version": "1.1-dev",
-    "image": "/home/pimptechh/Downloads/Tiny RPG Character Asset Pack 01 v2.0 -Free Soldier&Orc/Aseprite file/Soldier.png",
+    "image": "./Soldier.png",
     "format": "RGBA8888",
     "size": {
       "w": 4300,
