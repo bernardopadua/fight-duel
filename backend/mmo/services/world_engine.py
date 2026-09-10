@@ -36,15 +36,21 @@ class WorldEngine:
         return world
     
     @staticmethod
-    def leave_world(player_id: int) -> None:
+    def leave_world(player_id: int) -> bool:
         if FightEngine.is_player_in_a_fight(player_id):
             logger.warning("Player %s is in a fight", player_id)
-            return
+            return False
 
-        Player.objects.filter(
-            id=player_id,
-        ).exclude(
-            player_world__isnull=True
-        ).update(
-            player_world_id=None,
-        )
+        try:
+            Player.objects.filter(
+                id=player_id,
+            ).exclude(
+                player_world__isnull=True
+            ).update(
+                player_world_id=None,
+            )
+        except Exception as e:
+            logger.error("Error leaving world: %s", e)
+            return False
+
+        return True

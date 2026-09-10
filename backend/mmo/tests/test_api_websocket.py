@@ -676,6 +676,28 @@ class MMOConsumerTests(TransactionTestCase):
         await self.player.arefresh_from_db()
         self.assertIsNone(self.player.player_world)
 
+    async def test_websocket_leave_world_and_receive_message(self):
+        """
+        Test that the player receives a message when leaving the world
+        """
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.ENTER_WORLD, 'data': self.world.id})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.WORLD_ENTER)
+        self.assertIn('data', response)
+        self.assertIsNotNone(response['data'])
+        self.assertEqual(response['data']['id'], self.world.id)
+
+        await communicator.send_json_to({'action': ToServerActions.LEAVE_WORLD})
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.WORLD_LEAVE)
+        
+        await self.player.arefresh_from_db()
+        self.assertIsNone(self.player.player_world)
+
+        await communicator.disconnect()
+
     async def test_websocket_salvage_item_str_id(self):
         communicator = await self._connect_to_websocket()
 
