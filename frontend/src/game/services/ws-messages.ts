@@ -116,8 +116,13 @@ export interface WebSocketSendLeaveWorldMessage extends WebSocketSendMessage {
     action: "leave.world";
 };
 
+export interface WebSocketSendMoveInWorldMessage extends WebSocketSendMessage {
+    action: "move";
+};
+
 export type SendMessage = 
     | WebSocketSendAttackMessage 
     | WebSocketSendFleeMessage
     | WebSocketSendEnterWorldMessage
-    | WebSocketSendLeaveWorldMessage;
+    | WebSocketSendLeaveWorldMessage
+    | WebSocketSendMoveInWorldMessage;

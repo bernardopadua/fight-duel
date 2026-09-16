@@ -20,6 +20,7 @@ export interface PlayerService {
     getPlayer: (token: string) => Promise<boolean>;
     enterWorld: (worldId: number) => void;
     leaveWorld: () => void;
+    moveInWorld: () => void;
 };
 
 export function createPlayerService(ws: WebSocketService): PlayerService {
@@ -28,7 +29,7 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         usePlayerStore.getState().setPlayerWorld(message.data);
         EventBus.emit(GAME_EVENTS.ENTER_WORLD, message.data);
     };
-    const respLeaveWorld = (message: WebSocketWorldLeaveMessage) => {
+    const respLeaveWorld = (_: WebSocketWorldLeaveMessage) => {
         usePlayerStore.getState().setPlayerWorld(null);
         EventBus.emit(GAME_EVENTS.LEAVE_WORLD);
     };
@@ -46,6 +47,11 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         leaveWorld: () => {
             ws.send({
                 action: 'leave.world'
+            });
+        },
+        moveInWorld: () => {
+            ws.send({
+                action: 'move'
             });
         },
         getPlayer: async (token: string) => {

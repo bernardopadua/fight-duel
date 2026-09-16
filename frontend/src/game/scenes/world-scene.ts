@@ -17,6 +17,7 @@ import { EventBus, GAME_EVENTS } from '@/game/event-bus';
 // TYPES
 import type { GameServices } from '@/game/game-context';
 import type { WorldInfo } from '@/game/types';
+import type { WebSocketFightMessage } from '@/game/services/ws-messages';
 
 interface WorldSceneActiveTweens {
     waypoint: Phaser.Tweens.Tween;
@@ -34,6 +35,7 @@ export class WorldScene extends Phaser.Scene {
 
     private activeWorld: WorldInfo | null = null;
     private selectedWorldId: number = 0;
+    private selectedWorldScene: string;
 
     private worldTweens: Map<number, WorldSceneActiveTweens> = new Map<number, WorldSceneActiveTweens>();
 
@@ -107,9 +109,18 @@ export class WorldScene extends Phaser.Scene {
         };
         EventBus.on(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
 
+        const onFightActive = (data: WebSocketFightMessage["data"]) => {
+            this.scene.start('FightScene', {
+                creatureName: data.creatureName,
+                creatureLevel: data.creatureLevel
+            });
+        };
+        EventBus.on(GAME_EVENTS.FIGHT, onFightActive);
+
         const cleanUp = () => {
             EventBus.off(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
             EventBus.off(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
+            EventBus.off(GAME_EVENTS.FIGHT, onFightActive);
         };
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanUp);
         this.events.once(Phaser.Scenes.Events.DESTROY, cleanUp);
@@ -119,7 +130,8 @@ export class WorldScene extends Phaser.Scene {
             this,
             this.cameras.main.centerX, 
             this.cameras.main.centerY + 200, 
-            'btn-world-select',
+            'btn-world-ui',
+            'btn-world-ui-disabled',
             'Enter World',
             {
                 width: 300,
@@ -134,7 +146,8 @@ export class WorldScene extends Phaser.Scene {
             this,
             this.cameras.main.centerX,
             this.cameras.main.centerY + 200,
-            'btn-world-select',
+            'btn-world-ui',
+            'btn-world-ui-disabled',
             'Leave World',
             {
                 width: 200,
@@ -149,7 +162,8 @@ export class WorldScene extends Phaser.Scene {
             this,
             this.cameras.main.centerX,
             this.cameras.main.centerY + 200,
-            'btn-world-select',
+            'btn-world-ui',
+            'btn-world-ui-disabled',
             'Move and Fight',
             {
                 width: 200,
@@ -160,6 +174,13 @@ export class WorldScene extends Phaser.Scene {
                 }
             }
         ).setVisible(false).setDepth(2);
+    }
+    createPlayer(x: number, y: number){
+        if(this.activeHero)
+            this.activeHero.destroy();
+        
+        this.activeHero = this.add.sprite(x, y, 'player-sprite').setDisplaySize(150, 150);
+        this.activeHero.anims.createFromAseprite('player-sprite');
     }
     create() {
         const gameServices = this.registry.get('services') as GameServices;
@@ -177,6 +198,22 @@ export class WorldScene extends Phaser.Scene {
 
         //Create Components
         this.createButtons();
+
+        //Buttons events
+        this.enterWorldBtn.setOnClick(()=>{
+            setPlayerWorld(this.selectedWorldId);
+        });
+        this.leaveWorldBtn.setOnClick(()=>{
+            gameServices.playerService.leaveWorld();
+        });
+        this.moveInWorldBtn.setOnClick(()=>{
+            if (!this.textures.exists(this.selectedWorldScene)){
+                console.error(`[fight-duel]: scene ${this.selectedWorldScene} does not exists.`);
+                return;
+            }
+            this.activeHero.play("Walk");
+            gameServices.playerService.moveInWorld();
+        });
 
         //World Selection
         const bg = this.add.image(0, 0, 'world-map').setOrigin(0, 0);
@@ -231,14 +268,6 @@ export class WorldScene extends Phaser.Scene {
                 regionHighLight: regionHighlight
             });
 
-            //Buttons events
-            this.enterWorldBtn.setOnClick(()=>{
-                setPlayerWorld(this.selectedWorldId);
-            });
-            this.leaveWorldBtn.setOnClick(()=>{
-                gameServices.playerService.leaveWorld();
-            });
-
             regionHighlight.on('pointerover', () => {
                 this.tweens.killTweensOf([pointLight, worldCard]);
 
@@ -274,14 +303,14 @@ export class WorldScene extends Phaser.Scene {
             });
             regionHighlight.on('pointerdown', ()=>{
                 this.selectedWorldId = world.id;
+                this.selectedWorldScene = region.scene;
                 if (this.activeWorldWaypoint == regionHighlight) return;
 
                 if (this.input.keyboard)
                     this.input.keyboard.enabled = false;
 
                 this.activeWorldWaypoint = regionHighlight;
-                this.activeHero?.destroy();
-                this.activeHero = this.add.sprite(region.x, region.y-150, 'player-sprite').setDisplaySize(150, 150);
+                this.createPlayer(region.x, region.y-150);
                 this.tweens.add({
                     targets: this.activeHero,
                     y: region.y,
@@ -318,8 +347,9 @@ export class WorldScene extends Phaser.Scene {
         // Keyboard events
         this.input.keyboard?.once('keydown-SPACE', ()=>{
             this.scene.start('FightScene',{
-                creatureName: "Vagabonds",
-                creatureLevel: 12
+                creatureName: 'Vagabonds',
+                creatureLevel: 12,
+                scenarioName: 'act1-world-scene'
             });
         });
         this.input.keyboard?.on('keydown-ESC', ()=>{
