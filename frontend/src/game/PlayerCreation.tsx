@@ -10,7 +10,7 @@ import type { PlayerCreationPayload } from '@/api/types';
 import { createPlayer } from '@/api/player';
 import { usePlayerStore } from '@/game/store/player-store';
 
-export default function PlayerCreation(){
+export default function PlayerCreation({ goGame }: { goGame: () => void }){
     const auth = useAuth();
     const setPlayer = usePlayerStore((s) => s.setPlayer);
 
@@ -33,6 +33,7 @@ export default function PlayerCreation(){
                 }
 
                 setPlayer(player);
+                goGame();
             } catch (err){
                 console.error(err);
                 return "Error creating player. Contact support.";
