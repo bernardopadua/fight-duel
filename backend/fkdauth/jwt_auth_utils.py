@@ -8,8 +8,9 @@ from django.conf import settings
 from django.core.cache import cache
 
 from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
+from mmo.constants import USER_ONE_TIME_WS_CONNECT
 
-import time, base64, json, hmac, hashlib, uuid
+import time, base64, json, hmac, hashlib, uuid, secrets
 from typing import Any
 
 class JWTError(Exception):
@@ -39,6 +40,11 @@ def sign_token(encoded_header: str, encoded_payload: str, secret_key: str) -> by
     ).digest()
 
     return token_signature
+
+def create_ws_ticket(user_id: int) -> str:
+    ticket = secrets.token_urlsafe(16)
+    cache.set(USER_ONE_TIME_WS_CONNECT.format(ticket=ticket), user_id, timeout=120)
+    return ticket
 
 def create_token(user_id: int, secret_key: str, time_expires: int = 3600) -> str:
     payload = {
