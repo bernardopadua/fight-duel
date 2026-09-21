@@ -16,12 +16,16 @@ from rest_framework.request import Request
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import AuthenticationFailed
 
-from fkdauth.jwt_auth_utils import create_token, get_expiration_from_request
+from fkdauth.jwt_auth_utils import (
+    create_token, 
+    get_expiration_from_request,
+    create_ws_ticket
+)
 from fkdauth.constants import USER_JWT_BLOCKED_BEFORE
 
-from mmo.constants import USER_CHANNEL_WS_LOGGED, USER_ONE_TIME_WS_CONNECT
+from mmo.constants import USER_CHANNEL_WS_LOGGED
 
-import time, logging, secrets
+import time, logging
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +62,7 @@ class LoginView(APIView):
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         else:
             token = create_token(user.id, settings.SECRET_KEY)
-            ticket_one_time = secrets.token_urlsafe(16)
+            ticket_one_time = create_ws_ticket(user.id)
             response = Response({'token': token, 'oneTimeTicket': ticket_one_time}, status=status.HTTP_200_OK)
             response.set_cookie('Authorization-JWT', token, httponly=True, samesite='Lax')
 
@@ -67,13 +71,6 @@ class LoginView(APIView):
             # Delete the user's old websocket channel
             cache.delete(
                 USER_CHANNEL_WS_LOGGED.format(user_id=user.id)
-            )
-
-            # One time-ticket websocket connect
-            cache.set(
-                USER_ONE_TIME_WS_CONNECT.format(ticket=ticket_one_time),
-                user.id,
-                timeout=60
             )
 
             return response
@@ -144,9 +141,12 @@ class RegisterUserView(APIView):
         else:
             user = User.objects.create_user(username=username, password=password)
             token = create_token(user.id, settings.SECRET_KEY)
+            ticket_one_time = create_ws_ticket(user.id)
+            
             response = Response({
                 "success": True, 
                 "token": token,
+                "oneTimeTicket": ticket_one_time,
                 "user": {
                     "username": user.username
                 }

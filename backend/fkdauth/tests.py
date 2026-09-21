@@ -51,7 +51,16 @@ class UserRegistrationTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("Authorization-JWT", response.cookies)
         self.assertIn("token", response.data)
-        self.assertEqual(response.data['user']['username'], 'test')
+        self.assertIn("oneTimeTicket", response.data)
+
+        user_created = User.objects.get(username='test')
+        self.assertIsNotNone(user_created)
+
+        ticket = response.data['oneTimeTicket']
+        self.assertIsNotNone(ticket)
+        user_id = cache.get(USER_ONE_TIME_WS_CONNECT.format(ticket=ticket))
+        self.assertIsNotNone(user_id)
+        self.assertEqual(user_id, user_created.id)
 
     def test_user_registration_duplicate_username(self):
         response = self.client.post(
