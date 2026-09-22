@@ -34,6 +34,7 @@ export class WorldScene extends Phaser.Scene {
     private moveInWorldBtn!: ImageButton;
 
     private activeWorld: WorldInfo | null = null;
+    private activeWorldFightScene: string;
     private selectedWorldId: number = 0;
     private selectedWorldScene: string;
 
@@ -62,6 +63,7 @@ export class WorldScene extends Phaser.Scene {
     createEventsForScene() {
         const onWorldEnter = (world: WorldInfo) => {
             this.activeWorld = world;
+            this.activeWorldFightScene = regionsHighlight.filter(region => region.id === this.activeWorld.id)[0].scene;
             this.worldTweens.forEach((worldTween, idx) => {
                 const waypoint = worldTween.waypoint;
                 const region = worldTween.regionHighLight;
@@ -110,9 +112,11 @@ export class WorldScene extends Phaser.Scene {
         EventBus.on(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
 
         const onFightActive = (data: WebSocketFightMessage["data"]) => {
-            this.scene.start('FightScene', {
+            this.scene.sleep();
+            this.scene.launch('FightScene', {
                 creatureName: data.creatureName,
-                creatureLevel: data.creatureLevel
+                creatureLevel: data.creatureLevel,
+                scenarioName: this.activeWorldFightScene
             });
         };
         EventBus.on(GAME_EVENTS.FIGHT, onFightActive);
@@ -324,7 +328,7 @@ export class WorldScene extends Phaser.Scene {
                         this.activeHero.play({ key: 'Idle', repeat: -1 });
                         this.cameras.main.pan(region.x, region.y, 200, 'Cubic.easeOut');
                         this.cameras.main.zoomTo(1.2, 200, 'Cubic.easeOut');
-                        
+
                         this.enterWorldBtn.setPosition(
                             region.x,
                             region.y + 180

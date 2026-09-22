@@ -9,6 +9,7 @@ interface PlayerStoreState {
     player: Player | null;
     setPlayer: (player: Player) => void;
     setCurrency: (currency: number) => void;
+    setPlayerLife: (life: number) => void;
     setPlayerLevel: (level: number) => void;
     setPlayerWorld: (world: WorldInfo) => void;
 };
@@ -19,6 +20,11 @@ export const usePlayerStore = create<PlayerStoreState>()((set) => ({
     setCurrency: (currency: number) => set((player) => (
         player.player ?
             { player: { ...player.player, playerCurrency: currency } }
+            : { player: null }
+    )),
+    setPlayerLife: (life: number) => set((player) => (
+        player.player ?
+            { player: { ...player.player, playerLife: life } }
             : { player: null }
     )),
     setPlayerLevel: (level: number) => set((player) => (

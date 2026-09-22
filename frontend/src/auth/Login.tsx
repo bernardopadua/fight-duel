@@ -1,12 +1,27 @@
 import { useState, type SubmitEvent } from "react";
+
+//AUTH
 import { login } from "@/api/auth";
+
+//AUTH CONTEXT
 import { useAuth } from "@/auth/auth-context";
 
-export default function Login({ goRegister } : { goRegister: () => void }){
+//STORE
+import { usePlayerStore } from "@/game/store/player-store";
+
+//API
+import { getPlayer } from "@/api/player";
+
+export default function Login(
+    { goGame, goRegister, goPlayerCreation } : 
+    { goGame: () => void, goRegister: () => void, goPlayerCreation: () => void }
+){
     const auth = useAuth();
     const [userName, setUserName] = useState<string>("test");
     const [password, setPassword] = useState<string>("testword");
     const [error, setError] = useState<string|null>(null);
+
+    const setPlayer = usePlayerStore((s) => s.setPlayer);
 
     const handleSubmit = async (e: SubmitEvent) => {
         e.preventDefault();
@@ -15,6 +30,16 @@ export default function Login({ goRegister } : { goRegister: () => void }){
             const response = await login(userName, password);
             if (!response) return;
             auth.login(response.token, response.oneTimeTicket);
+            
+            getPlayer(response.token)
+            .then((player) => {
+                if (!player) {
+                    goPlayerCreation();
+                } else {
+                    setPlayer(player);
+                    goGame();
+                }
+            });
         } catch (err){
             if(err instanceof Error){
                 console.error(err.message);

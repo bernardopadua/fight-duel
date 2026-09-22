@@ -2,10 +2,10 @@ import { useState, type SubmitEvent } from "react";
 import { register } from "@/api/auth";
 import { useAuth } from "@/auth/auth-context";
 
-export default function Register({ goLogin } : { goLogin: () => void }){
+export default function Register({ goPlayerCreation } : { goPlayerCreation: () => void }){
     const auth = useAuth();
-    const [userName, setUserName] = useState<string>("");
-    const [password, setPassword] = useState<string>("");
+    const [userName, setUserName] = useState<string>("test");
+    const [password, setPassword] = useState<string>("testword");
     const [error, setError] = useState<string|null>(null);
 
     const handleSubmit = async (e: SubmitEvent) => {
@@ -16,7 +16,8 @@ export default function Register({ goLogin } : { goLogin: () => void }){
             if ("error" in response){
                 setError(response.error);
             } else {
-                auth.login(response.token);
+                auth.login(response.token, response.oneTimeTicket);
+                goPlayerCreation();
             }
         } catch (err){
             if(err instanceof Error){
@@ -32,7 +33,7 @@ export default function Register({ goLogin } : { goLogin: () => void }){
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="password" />
             {error && <p>{error}</p>}<br />
             <button type="submit">Create Account</button><br />
-            <button type="button" onClick={goLogin}>I already have an account</button>
+            <button type="button">I already have an account</button>
         </form>
     );
 };

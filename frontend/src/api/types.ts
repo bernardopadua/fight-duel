@@ -2,6 +2,7 @@
 interface RegisterResponseSuccess{
     success: string;
     token: string;
+    oneTimeTicket: string;
 }
 
 interface RegisterResponseError{
