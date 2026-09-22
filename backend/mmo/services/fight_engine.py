@@ -95,12 +95,14 @@ class FightStart:
     opponent: Player | None
     creature_name: str | None
     creature_level: int | None
+    creature_life: int | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "fightId": self.fight_id,
             "creatureName": self.creature_name,
-            "creatureLevel": self.creature_level
+            "creatureLevel": self.creature_level,
+            "creatureLife": self.creature_life
         }
 
 class FightEngine:
@@ -170,7 +172,8 @@ class FightEngine:
             player=p,
             opponent=opponent,
             creature_name=creature.creature_name if creature else None,
-            creature_level=creature.creature_level if creature else None
+            creature_level=creature.creature_level if creature else None,
+            creature_life=creature.creature_life if creature else None,
         )
 
     @staticmethod
