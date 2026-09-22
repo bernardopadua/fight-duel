@@ -291,6 +291,7 @@ class MMOPlayerFightTests(TestCase):
         self.assertIsNotNone(fs)
         self.assertEqual(fs.creature_name, self.creature_name)
         self.assertEqual(fs.creature_level, self.creature_level)
+        self.assertEqual(fs.creature_life, self.creature_life)
 
         fight = Fight.objects.filter(id=fs.fight_id)
         self.assertEqual(fight.count(), 1)
@@ -957,6 +958,9 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('data', response)
         self.assertIn('fightId', response['data'])
         self.assertIsNotNone(response['data']['fightId'])
+        self.assertIn('creatureName', response['data'])
+        self.assertIn('creatureLevel', response['data'])
+        self.assertIn('creatureLife', response['data'])
         
         mock_monster_attack.assert_called_once() 
         channel_name = mock_monster_attack.call_args.kwargs['args'][1]
