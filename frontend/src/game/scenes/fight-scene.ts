@@ -16,6 +16,7 @@ import { usePlayerStore } from '../store/player-store';
 interface FightData {
     creatureName: string;
     creatureLevel: number;
+    creatureLife: number;
     scenarioName: string;
 }
 
@@ -90,10 +91,11 @@ export class FightScene extends Phaser.Scene {
                 this.tweens.add({
                     targets: this.activeCreature,
                     ease: 'Power1',
+                    duration: 250,
                     x: this.activePlayer.x + (this.activePlayer.width/2),
                     onComplete: () => {
                         this.activeCreature.play({key: 'Attack01'}, true);
-                        this.activePlayer.play({key: 'Hurt'});
+                        this.activePlayer.play({key: 'Hurt', timeScale: 1.5});
                         
                         const player = usePlayerStore.getState().player;
                         const damage = player.playerLife - data.playerLife;
@@ -120,6 +122,7 @@ export class FightScene extends Phaser.Scene {
                                 targets: this.activeCreature,
                                 x: width - 450,
                                 ease: 'Power1',
+                                duration: 300,
                                 onComplete: () => {
                                     this.activeCreature.setFlipX(true);
                                     this.activeCreature.play({key: 'Idle', repeat: -1});
@@ -138,12 +141,13 @@ export class FightScene extends Phaser.Scene {
                 this.tweens.add({
                     targets: this.activePlayer,
                     ease: 'Power1',
+                    duration: 250,
                     x: this.activeCreature.x - (this.activeCreature.width/2),
                     onComplete: () => {
                         this.activePlayer.play({key: 'Attack01'}, true);
-                        this.activeCreature.play({key: 'Hurt'});
+                        this.activeCreature.play({key: 'Hurt', timeScale: 1.5});
 
-                        const damage = player.playerLife - data.playerLife;
+                        const damage = this.creatureData.creatureLife - data.creatureLife;
                         const damageTaken = this.add.text(
                             this.activePlayer.x, this.activePlayer.y, 
                             damage.toString(), {fontSize: '24px', color: '#a34a4aff'}).setDepth(
@@ -155,6 +159,7 @@ export class FightScene extends Phaser.Scene {
                             y: this.activePlayer.y - 100,
                             alpha: 0.01,
                             onComplete: () => {
+                                this.creatureData.creatureLife = data.creatureLife;
                                 damageTaken.destroy();
                             }
                         });
@@ -166,6 +171,7 @@ export class FightScene extends Phaser.Scene {
                                 targets: this.activePlayer,
                                 x: 450,
                                 ease: 'Power1',
+                                duration: 300,
                                 onComplete: () => {
                                     this.activePlayer.setFlipX(false);
                                     this.activePlayer.play({key: 'Idle', repeat: -1});
@@ -235,7 +241,8 @@ export class FightScene extends Phaser.Scene {
         
         if(!this.creatureData){
             console.error('No creature.');
-            this.scene.start('WorldScene');
+            this.scene.wake('WorldScene');
+            this.scene.stop();
             return;
         }
 

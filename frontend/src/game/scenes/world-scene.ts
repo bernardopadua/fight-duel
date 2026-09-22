@@ -116,6 +116,7 @@ export class WorldScene extends Phaser.Scene {
             this.scene.launch('FightScene', {
                 creatureName: data.creatureName,
                 creatureLevel: data.creatureLevel,
+                creatureLife: data.creatureLife,
                 scenarioName: this.activeWorldFightScene
             });
         };

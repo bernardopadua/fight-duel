@@ -10,6 +10,7 @@ export interface WebSocketFightMessage extends WebSocketMessage {
         fightId: number;
         creatureName: string;
         creatureLevel: number;
+        creatureLife: number;
     }
 };
 
