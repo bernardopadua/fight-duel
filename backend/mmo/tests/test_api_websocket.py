@@ -961,7 +961,8 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('creatureName', response['data'])
         self.assertIn('creatureLevel', response['data'])
         self.assertIn('creatureLife', response['data'])
-        
+        self.assertIn('creatureMaxLife', response['data'])
+
         mock_monster_attack.assert_called_once() 
         channel_name = mock_monster_attack.call_args.kwargs['args'][1]
 
