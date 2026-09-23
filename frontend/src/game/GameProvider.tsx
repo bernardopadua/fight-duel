@@ -21,7 +21,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             websocketService: ws,
             fightService: createFightService(ws),
             playerService: createPlayerService(ws),
-            worldService: createWorldService()
+            worldService: createWorldService(ws)
         };
     });
 

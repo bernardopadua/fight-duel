@@ -11,6 +11,7 @@ export interface WebSocketFightMessage extends WebSocketMessage {
         creatureName: string;
         creatureLevel: number;
         creatureLife: number;
+        creatureMaxLife: number;
     }
 };
 
@@ -24,8 +25,10 @@ export interface WebSocketFightUpdate extends WebSocketMessage {
         isCreatureAttacking: number;
         playerLife: number;
         playerStamina: number;
+        playerAttackDamage: number;
         creatureLife: number;
         creatureLevel: number;
+        creatureAttackDamage: number;
     }
 };
 
@@ -78,6 +81,16 @@ export interface WebSocketWorldLeaveMessage extends WebSocketMessage {
 
 export type WorldMessage = WebSocketWorldEnterMessage | WebSocketWorldLeaveMessage;
 
+export interface WebSocketRecoverStatusMessage extends WebSocketMessage {
+    action: "player.recover.status";
+    data: {
+        playerLife: number;
+        playerStamina: number;
+    }
+};
+
+export type RecoverStatusMessage = WebSocketRecoverStatusMessage;
+
 export interface WebSocketInventoryUpdate extends WebSocketMessage {
     action: "inventory.update";
     data: {
@@ -92,7 +105,11 @@ export interface WebSocketInventoryUpdate extends WebSocketMessage {
 
 export type InventoryMessage = WebSocketInventoryUpdate;
 
-export type AnyMessage = FightMessage | WorldMessage | InventoryMessage;
+export type AnyMessage = 
+    | RecoverStatusMessage
+    | FightMessage 
+    | WorldMessage 
+    | InventoryMessage;
 
 // SEND MESSAGES
 export interface WebSocketSendMessage {

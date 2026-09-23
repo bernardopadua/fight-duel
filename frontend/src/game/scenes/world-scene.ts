@@ -117,6 +117,7 @@ export class WorldScene extends Phaser.Scene {
                 creatureName: data.creatureName,
                 creatureLevel: data.creatureLevel,
                 creatureLife: data.creatureLife,
+                creatureMaxLife: data.creatureMaxLife,
                 scenarioName: this.activeWorldFightScene
             });
         };

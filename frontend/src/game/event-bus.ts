@@ -4,6 +4,9 @@ export const GAME_EVENTS = {
     // World Events
     ENTER_WORLD: 'player:enter_world',
     LEAVE_WORLD: 'player:leave_world',
+
+    //Recover
+    PLAYER_RECOVER_STATUS: 'player:recover.status',
     
     // Fight Events
     FIGHT: 'player:fight',

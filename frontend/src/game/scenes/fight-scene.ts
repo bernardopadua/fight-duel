@@ -1,10 +1,14 @@
 import Phaser from 'phaser';
 
 // WSocket MESSAGES
-import type { WebSocketFightUpdate, WebSocketFightFinish } from '@/game/services/ws-messages';
+import type { 
+    WebSocketFightUpdate, 
+    WebSocketFightFinish 
+} from '@/game/services/ws-messages';
 
 // OBJECTS
 import { ImageButton } from '@/game/objects/image-button';
+import { StatusBar } from '@/game/objects/status-bar';
 
 // EVENTBUS
 import { EventBus, GAME_EVENTS } from '@/game/event-bus';
@@ -17,6 +21,7 @@ interface FightData {
     creatureName: string;
     creatureLevel: number;
     creatureLife: number;
+    creatureMaxLife: number;
     scenarioName: string;
 }
 
@@ -25,12 +30,14 @@ export class FightScene extends Phaser.Scene {
     
     // Player
     private activePlayer! : Phaser.GameObjects.Sprite;
+    private lifePlayerStatus! : StatusBar;
+    private staminaPlayerStatus! : StatusBar;
     private isPlayerAttacking: boolean = false;
 
     // Creature
     private activeCreature! : Phaser.GameObjects.Sprite;
+    private lifeCreatureStatus! : StatusBar;
     private isCreatureAttacking: boolean = false;
-    private lastCreatureLife: number = 0;
 
     private eventEqueue: Array<() => Promise<void>> = [];
     private isProcessing: boolean = false;
@@ -97,8 +104,7 @@ export class FightScene extends Phaser.Scene {
                         this.activeCreature.play({key: 'Attack01'}, true);
                         this.activePlayer.play({key: 'Hurt', timeScale: 1.5});
                         
-                        const player = usePlayerStore.getState().player;
-                        const damage = player.playerLife - data.playerLife;
+                        const damage = data.creatureAttackDamage;
                         const damageTaken = this.add.text(
                             this.activePlayer.x, this.activePlayer.y, 
                             damage.toString(), {fontSize: '24px', color: '#a34a4aff'}).setDepth(
@@ -112,6 +118,7 @@ export class FightScene extends Phaser.Scene {
                             onComplete: () => {
                                 damageTaken.destroy();
                                 usePlayerStore.getState().setPlayerLife(data.playerLife);
+                                this.lifePlayerStatus.update(data.playerLife, null);
                             }
                         });
 
@@ -147,7 +154,7 @@ export class FightScene extends Phaser.Scene {
                         this.activePlayer.play({key: 'Attack01'}, true);
                         this.activeCreature.play({key: 'Hurt', timeScale: 1.5});
 
-                        const damage = this.creatureData.creatureLife - data.creatureLife;
+                        const damage = data.playerAttackDamage;
                         const damageTaken = this.add.text(
                             this.activePlayer.x, this.activePlayer.y, 
                             damage.toString(), {fontSize: '24px', color: '#a34a4aff'}).setDepth(
@@ -160,6 +167,8 @@ export class FightScene extends Phaser.Scene {
                             alpha: 0.01,
                             onComplete: () => {
                                 this.creatureData.creatureLife = data.creatureLife;
+                                this.lifeCreatureStatus.update(this.creatureData.creatureLife, null);
+                                this.staminaPlayerStatus.update(data.playerStamina, null);
                                 damageTaken.destroy();
                             }
                         });
@@ -198,26 +207,17 @@ export class FightScene extends Phaser.Scene {
 
         const onFightFinish = (data: WebSocketFightFinish["data"]) => {
             if (!data.isPlayerAlive){
-                console.log('DeathScene');
-                //this.scene.start('WorldScene');
+                this.activePlayer.play({key: 'Death'});
             } else if(data.isPlayerAlive && !data.isMonsterAlive) {
-                this.activePlayer.setFlipX(true);
-                this.activePlayer.play({key: 'Walk', repeat: -1});
-                this.tweens.add({
-                    targets: this.activePlayer,
-                    x: width - 250,
-                    ease: 'Power1',
-                    onComplete: () => {
-                        this.scene.start('WorldScene');
-                    }
-                });
+                this.activeCreature.play({key: 'Death'});
             } else if(data.isPlayerAlive && data.isMonsterAlive){
                 this.activePlayer.setFlipX(true);
                 this.activePlayer.play({key: 'Walk', repeat: -1});
                 this.tweens.add({
                     targets: this.activePlayer,
-                    x:(-150),
+                    x: -250,
                     ease: 'Power1',
+                    duration: 350,
                     onComplete: () => {
                         this.scene.wake('WorldScene');
                         this.scene.stop();
@@ -227,9 +227,17 @@ export class FightScene extends Phaser.Scene {
         };
         EventBus.on(GAME_EVENTS.FIGHT_FINISH, onFightFinish);
 
+        const updatePlayerLifeAfterRecover = () => {
+            const player = usePlayerStore.getState().player;
+            this.lifePlayerStatus.update(player.playerLife, player.playerMaxLife);
+            this.staminaPlayerStatus.update(player.playerStamina, player.playerMaxStamina);
+        };
+        EventBus.on(GAME_EVENTS.PLAYER_RECOVER_STATUS, updatePlayerLifeAfterRecover);
+
         const cleanUp = () => {
             EventBus.off(GAME_EVENTS.FIGHT_UPDATE, onFightUpdate);
             EventBus.off(GAME_EVENTS.FIGHT_FINISH, onFightFinish);
+            EventBus.off(GAME_EVENTS.PLAYER_RECOVER_STATUS, updatePlayerLifeAfterRecover);
         };
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanUp);
         this.events.once(Phaser.Scenes.Events.DESTROY, cleanUp);
@@ -255,15 +263,22 @@ export class FightScene extends Phaser.Scene {
         this.createEventsForScene();
 
         //Adding characters
+        const player = usePlayerStore.getState().player;
         this.activePlayer = this.add.sprite(-50, (height/2), 'player-sprite').setScale(
             2.5, 2.5
         ).setDepth(1);
         this.activePlayer.anims.createFromAseprite('player-sprite');
+        this.lifePlayerStatus = new StatusBar(this, this.activePlayer, 10, 0x22c55e, 64, 8);
+        this.staminaPlayerStatus = new StatusBar(this, this.activePlayer, -5, 0x14b8a6, 64, 8);
+        this.lifePlayerStatus.update(player.playerLife, player.playerMaxLife);
+        this.staminaPlayerStatus.update(player.playerStamina, player.playerMaxStamina);
 
         this.activeCreature = this.add.sprite(width-450, height/2, 'orc-creature-sprite').setScale(
             2.5, 2.5
         ).setDepth(1).setFlipX(true);
         this.activeCreature.anims.createFromAseprite('orc-creature-sprite');
+        this.lifeCreatureStatus = new StatusBar(this, this.activeCreature, 15, 0x22c55e, 64, 8);
+        this.lifeCreatureStatus.update(this.creatureData.creatureLife, this.creatureData.creatureMaxLife);
         this.activeCreature.play({key: 'Idle', repeat: -1})
 
         //Buttons
