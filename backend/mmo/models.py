@@ -22,6 +22,7 @@ class WorldCreature(models.Model):
     creature_name = models.CharField(max_length=100)
     creature_level = models.IntegerField(default=1)
     creature_life = models.IntegerField(default=100)
+    creature_max_life = models.IntegerField(default=100)
     creature_chance_drop = models.IntegerField(default=50)
     world = models.ForeignKey('World', on_delete=models.CASCADE)
 
@@ -30,7 +31,7 @@ class Item(models.Model):
         WEAPON = "weapon"
         ARMOUR = "armour"
         CONSUMABLE = "consumable"
-    
+
     class ItemConsumableType(models.TextChoices):
         LIFE = "life"
         STAMINA = "stamina"
