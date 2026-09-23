@@ -70,9 +70,11 @@ class FightStatus:
     is_creature_attacking: float = 0.0
     player_life: int | None = None
     player_stamina: int | None = None
+    player_attack_damage: int = 0
     creature_life: int | None = None
     creature_level: int = 1
     creature_chance_drop: int = 0
+    creature_attack_damage: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return_dict = {
@@ -83,8 +85,10 @@ class FightStatus:
             "isCreatureAttacking": self.is_creature_attacking,
             "playerLife": self.player_life,
             "playerStamina": self.player_stamina,
+            "playerAttackDamage": self.player_attack_damage,
             "creatureLife": self.creature_life,
-            "creatureLevel": self.creature_level
+            "creatureLevel": self.creature_level,
+            "creatureAttackDamage": self.creature_attack_damage
         }
         return return_dict
 
@@ -96,13 +100,15 @@ class FightStart:
     creature_name: str | None
     creature_level: int | None
     creature_life: int | None
+    creature_max_life: int | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "fightId": self.fight_id,
             "creatureName": self.creature_name,
             "creatureLevel": self.creature_level,
-            "creatureLife": self.creature_life
+            "creatureLife": self.creature_life,
+            "creatureMaxLife": self.creature_max_life
         }
 
 class FightEngine:
@@ -174,6 +180,7 @@ class FightEngine:
             creature_name=creature.creature_name if creature else None,
             creature_level=creature.creature_level if creature else None,
             creature_life=creature.creature_life if creature else None,
+            creature_max_life=creature.creature_max_life if creature else None
         )
 
     @staticmethod
@@ -541,6 +548,7 @@ class FightEngine:
                 p.player_stamina = max(0, p.player_stamina - stamina_usage)
 
                 fs.player_stamina = p.player_stamina
+                fs.player_attack_damage = power_attack
                 fs.creature_life = c.creature_life
 
             unlock_fight = False
@@ -600,6 +608,7 @@ class FightEngine:
             fs.creature_life = c.creature_life
             fs.creature_level = c.creature_level
             fs.player_life = p.player_life
+            fs.creature_attack_damage = total_damage
 
             unlock_fight = False
             if p.player_life <= 0:
