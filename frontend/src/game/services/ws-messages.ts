@@ -148,12 +148,12 @@ export interface WebSocketGetInventoryMessage extends WebSocketSendMessage {
 };
 
 export interface WebSocketUseItemMessage extends WebSocketSendMessage {
-    action: "use";
+    action: "use.item";
     data: number;
 };
 
 export interface WebSocketSalvageItemMessage extends WebSocketSendMessage {
-    action: "salvage";
+    action: "salvage.item";
     data: number;
 };
 

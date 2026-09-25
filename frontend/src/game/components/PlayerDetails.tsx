@@ -38,6 +38,14 @@ export function PlayerDetails(){
 
                 <button 
                     type="button"
+                    onClick={() => open('playerStats')}
+                    className="w-full mt-2 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5"
+                >
+                    ⚔️ Player Stats
+                </button>
+
+                <button 
+                    type="button"
                     onClick={() => open('inventory')}
                     className="w-full mt-2 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5"
                 >

@@ -40,19 +40,19 @@ export function createPlayerInventoryService(ws: WebSocketService): PlayerInvent
         },
         useItem: (item: PlayerInventoryItem) => {
             ws.send({
-                action: 'use',
+                action: 'use.item',
                 data: item.id
             });
         },
         equipItem: (item: PlayerInventoryItem) => {
             ws.send({
-                action: 'use',
+                action: 'use.item',
                 data: item.id
             });
         },
         salvageItem: (item: PlayerInventoryItem) => {
             ws.send({
-                action: 'salvage',
+                action: 'salvage.item',
                 data: item.id
             });
         },

@@ -19,6 +19,7 @@ import { WindowRPG } from '@/game/components/WindowRPG';
 import { PlayerDetails, PlayerDetailsRightSide } from '@/game/components/PlayerDetails';
 import { DropItems } from '@/game/components/DropItems';
 import { PlayerInventory } from '@/game/components/PlayerInventory';
+import { PlayerStats } from '@/game/components/PlayerStats';
 
 export default function GameLayout() {
     const auth = useAuth();
@@ -50,6 +51,18 @@ export default function GameLayout() {
             >
                 <PlayerDetails />
             </WindowRPG>
+
+            {windows.playerStats && (
+                <WindowRPG
+                    title='Player Stats'
+                    icon='⚔️'
+                    rightSide={null}
+                    parentContainerRef={containerRef}
+                    onClose={() => useUIStore.getState().close('playerStats')}
+                >
+                    <PlayerStats />
+                </WindowRPG>
+            )}
 
             {items.length > 0 && (
                 <WindowRPG 

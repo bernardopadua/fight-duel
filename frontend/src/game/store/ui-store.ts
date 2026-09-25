@@ -1,7 +1,7 @@
 //ZUSTAND
 import { create } from 'zustand';
 
-export type WindowId = 'inventory';
+export type WindowId = 'inventory' | 'playerStats';
 
 interface UIStore {
     windows: Record<WindowId, boolean>;
@@ -13,6 +13,7 @@ interface UIStore {
 export const useUIStore = create<UIStore>((set) => ({
     windows: {
         inventory: false,
+        playerStats: false,
     },
     open: (id) => set((s) => ({ windows: { ...s.windows, [id]: true } })),
     close: (id) => set((s) => ({ windows: { ...s.windows, [id]: false } })),
