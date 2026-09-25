@@ -1,5 +1,6 @@
 // STORE
 import { usePlayerStore } from '@/game/store/player-store';
+import { usePlayerInventoryStore } from '@/game/store/player-inventory-store';
 
 // WEBSOCKET
 import type { WebSocketService } from "@/game/services/ws-service";
@@ -7,11 +8,15 @@ import type { WebSocketService } from "@/game/services/ws-service";
 // WSocket MESSAGE
 import type { 
     WebSocketWorldEnterMessage,
-    WebSocketWorldLeaveMessage
+    WebSocketWorldLeaveMessage,
+    WebSocketInventoryUpdateMessage
  } from '@/game/services/ws-messages';
 
 // EVENT EMITTER
 import { EventBus, GAME_EVENTS } from '@/game/event-bus';
+
+//DROPITEM
+import { type DropItem } from '@/game/store/drop-store';
 
 //API
 import { getPlayer } from "@/api/player";
@@ -21,6 +26,7 @@ export interface PlayerService {
     enterWorld: (worldId: number) => void;
     leaveWorld: () => void;
     moveInWorld: () => void;
+    lootItems: (items: DropItem[]) => void;
 };
 
 export function createPlayerService(ws: WebSocketService): PlayerService {
@@ -33,11 +39,24 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         usePlayerStore.getState().setPlayerWorld(null);
         EventBus.emit(GAME_EVENTS.LEAVE_WORLD);
     };
+    const respInventoryUpdate = (message: WebSocketInventoryUpdateMessage) => {
+        usePlayerInventoryStore.getState().setInventoryItems(message.data)
+    };
 
     ws.subscribe('world.enter', respEnterWorld);
     ws.subscribe('world.leave', respLeaveWorld);
+    ws.subscribe('inventory.update', respInventoryUpdate);
 
     return {
+        getPlayer: async (token: string) => {
+            const player = await getPlayer(token);
+            if (player) {
+                usePlayerStore.getState().setPlayer(player);
+                return true;
+            } else {
+                return false;
+            }
+        },
         enterWorld: (worldId: number) => {
             ws.send({
                 action: 'enter.world',
@@ -54,14 +73,11 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
                 action: 'move'
             });
         },
-        getPlayer: async (token: string) => {
-            const player = await getPlayer(token);
-            if (player) {
-                usePlayerStore.getState().setPlayer(player);
-                return true;
-            } else {
-                return false;
-            }
+        lootItems: (items: DropItem[]) => {
+            ws.send({
+                action: 'loot',
+                data: items.map((item) => item.id)
+            });
         }
     };
 };

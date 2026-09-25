@@ -12,6 +12,8 @@ export function WindowRPG(
     return (
         <motion.div drag dragMomentum={false} dragElastic={0}
             dragConstraints={parentContainerRef}
+            onPointerDown={(e)=>{ e.stopPropagation(); }}
+            onMouseDown={(e)=>{ e.stopPropagation(); }}
             className="relative w-60 rounded border-2 border-amber-700/80 
                 scale-65 sm:scale-90 md:scale-100
                 bg-gradient-to-b from-stone-900/95 via-neutral-950/95 to-black/95 

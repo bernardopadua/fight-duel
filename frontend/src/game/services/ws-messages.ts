@@ -91,7 +91,7 @@ export interface WebSocketRecoverStatusMessage extends WebSocketMessage {
 
 export type RecoverStatusMessage = WebSocketRecoverStatusMessage;
 
-export interface WebSocketInventoryUpdate extends WebSocketMessage {
+export interface WebSocketInventoryUpdateMessage extends WebSocketMessage {
     action: "inventory.update";
     data: {
         id: number;
@@ -103,7 +103,7 @@ export interface WebSocketInventoryUpdate extends WebSocketMessage {
     }[]
 };
 
-export type InventoryMessage = WebSocketInventoryUpdate;
+export type InventoryMessage = WebSocketInventoryUpdateMessage;
 
 export type AnyMessage = 
     | RecoverStatusMessage
@@ -138,9 +138,15 @@ export interface WebSocketSendMoveInWorldMessage extends WebSocketSendMessage {
     action: "move";
 };
 
+export interface WebSocketSendLootItemsMessage extends WebSocketSendMessage {
+    action: "loot";
+    data: number[];
+};
+
 export type SendMessage = 
     | WebSocketSendAttackMessage 
     | WebSocketSendFleeMessage
     | WebSocketSendEnterWorldMessage
     | WebSocketSendLeaveWorldMessage
-    | WebSocketSendMoveInWorldMessage;
+    | WebSocketSendMoveInWorldMessage
+    | WebSocketSendLootItemsMessage;
