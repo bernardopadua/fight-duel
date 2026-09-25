@@ -42,6 +42,7 @@ export function DropItems({ items = [], onLoot }: DropItemsProps) {
 
     const handleLoot = () => {
         const selectedItems = items.filter((item) => selectedIds.includes(item.id));
+        
         //onLoot?.(selectedItems);
     };
 

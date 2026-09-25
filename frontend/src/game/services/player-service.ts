@@ -40,7 +40,9 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         EventBus.emit(GAME_EVENTS.LEAVE_WORLD);
     };
     const respInventoryUpdate = (message: WebSocketInventoryUpdateMessage) => {
-        usePlayerInventoryStore.getState().setInventoryItems(message.data)
+        usePlayerInventoryStore.getState().setInventoryItems(message.data);
+        const totalInventoryWeight = message.data.reduce((acc, item) => acc + item.itemWeight, 0);
+        usePlayerStore.getState().setTotalInventoryWeight(totalInventoryWeight);
     };
 
     ws.subscribe('world.enter', respEnterWorld);
