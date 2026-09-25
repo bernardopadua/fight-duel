@@ -1,12 +1,21 @@
 import { motion } from "framer-motion";
 
 export function WindowRPG(
-    { children, title, icon, rightSide, parentContainerRef }: 
-    { children: React.ReactNode,
+    { 
+        children,
+        title,
+        icon,
+        rightSide,
+        parentContainerRef,
+        onClose
+    }: 
+    { 
+        children: React.ReactNode,
         title: string,
         icon: string,
         rightSide: React.ReactNode,
-        parentContainerRef: React.RefObject<HTMLDivElement>
+        parentContainerRef: React.RefObject<HTMLDivElement>,
+        onClose?: () => void
      }
 ){
     return (
@@ -26,13 +35,24 @@ export function WindowRPG(
             <span className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rotate-45 border border-amber-300 bg-amber-600 shadow-[0_0_6px_#f59e0b]" />
 
             <div className="flex items-center justify-between border-b border-amber-700/50 pb-2 mb-3">
-            <div className="flex items-center gap-2">
-                <span className="text-base">{icon}</span>
-                <h2 className="font-['Cinzel'] text-xs font-bold tracking-widest text-amber-400 uppercase drop-shadow">
-                {title}
-                </h2>
-            </div>
-            {rightSide}
+                <div className="flex items-center gap-2">
+                    <span className="text-base">{icon}</span>
+                    <h2 className="font-['Cinzel'] text-xs font-bold tracking-widest text-amber-400 uppercase drop-shadow">
+                        {title}
+                    </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    {rightSide}
+                    {onClose && (
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="text-stone-400 hover:text-amber-300 hover:scale-110 active:scale-95 text-xs font-bold transition-all cursor-pointer leading-none px-1"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
             </div>
             {children}
         </motion.div>

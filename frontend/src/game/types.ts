@@ -5,6 +5,20 @@ interface WorldInfo {
     worldMaxLevel: number;
 };
 
+export const ITEM_TYPE = {
+    ARMOUR: 'armour',
+    WEAPON: 'weapon',
+    CONSUMABLE: 'consumable'
+};
+
+export const ITEM_CONSUMABLE_TYPE = {
+    LIFE: 'life',
+    STAMINA: 'stamina'
+};
+
+export type ItemConsumableType = typeof ITEM_CONSUMABLE_TYPE[keyof typeof ITEM_CONSUMABLE_TYPE];
+export type ItemType = typeof ITEM_TYPE[keyof typeof ITEM_TYPE];
+
 interface Item {
     id: number
     itemName: string

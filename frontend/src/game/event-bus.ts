@@ -8,6 +8,9 @@ export const GAME_EVENTS = {
     //Recover
     PLAYER_RECOVER_STATUS: 'player:recover.status',
     
+    //Player
+    UPDATE_PLAYER: 'player:update',
+
     // Fight Events
     FIGHT: 'player:fight',
     FIGHT_UPDATE: 'player:fight_update',

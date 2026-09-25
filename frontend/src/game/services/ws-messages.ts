@@ -143,10 +143,27 @@ export interface WebSocketSendLootItemsMessage extends WebSocketSendMessage {
     data: number[];
 };
 
+export interface WebSocketGetInventoryMessage extends WebSocketSendMessage {
+    action: "get.inventory";
+};
+
+export interface WebSocketUseItemMessage extends WebSocketSendMessage {
+    action: "use";
+    data: number;
+};
+
+export interface WebSocketSalvageItemMessage extends WebSocketSendMessage {
+    action: "salvage";
+    data: number;
+};
+
 export type SendMessage = 
     | WebSocketSendAttackMessage 
     | WebSocketSendFleeMessage
     | WebSocketSendEnterWorldMessage
     | WebSocketSendLeaveWorldMessage
     | WebSocketSendMoveInWorldMessage
-    | WebSocketSendLootItemsMessage;
+    | WebSocketSendLootItemsMessage
+    | WebSocketGetInventoryMessage
+    | WebSocketUseItemMessage
+    | WebSocketSalvageItemMessage;

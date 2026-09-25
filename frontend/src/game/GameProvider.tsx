@@ -12,6 +12,7 @@ import { createWebSocketService } from '@/game/services/ws-service';
 import { createFightService } from '@/game/services/fight-service';
 import { createPlayerService } from '@/game/services/player-service';
 import { createWorldService } from '@/game/services/world-service';
+import { createPlayerInventoryService } from '@/game/services/player-inventory-service';
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
     const auth = useAuth();
@@ -21,7 +22,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             websocketService: ws,
             fightService: createFightService(ws),
             playerService: createPlayerService(ws),
-            worldService: createWorldService(ws)
+            worldService: createWorldService(ws),
+            playerInventoryService: createPlayerInventoryService(ws)
         };
     });
 

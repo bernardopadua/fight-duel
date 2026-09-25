@@ -34,8 +34,10 @@ export default function GameLoggedIn() {
                     if (ignore) return;
                     if (!gotWorlds)
                         setGameState({ status: "no-worlds" });
-                    else
+                    else {
                         setGameState({ status: "has-player" });
+                        services.playerInventoryService.getInventory();
+                    }
                 });
         }
         return () => { ignore = true; }

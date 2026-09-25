@@ -1,4 +1,6 @@
+//STORE
 import { usePlayerStore } from '@/game/store/player-store';
+import { useUIStore } from '@/game/store/ui-store';
 
 export function PlayerDetailsRightSide(){
     const player = usePlayerStore((s) => s.player);
@@ -14,41 +16,33 @@ export function PlayerDetailsRightSide(){
 
 export function PlayerDetails(){
     const player = usePlayerStore((s) => s.player);
-    const setCurrency = usePlayerStore((s) => s.setCurrency);
-    const setLevel = usePlayerStore((s) => s.setPlayerLevel);
+    const { open } = useUIStore();
 
     if (!player) return null;
 
     return (
         <div>
             <div className="space-y-2.5 text-sm">
-            <div className="flex justify-between items-center rounded bg-stone-900/60 px-2.5 py-1.5 border border-stone-800">
-                <span className="text-xs text-stone-400 font-medium">Nome</span>
-                <span className="font-semibold text-amber-100">{player.playerName}</span>
-            </div>
-
-            <div className="flex justify-between items-center rounded bg-stone-900/60 px-2.5 py-1.5 border border-stone-800">
-                <span className="text-xs text-stone-400 font-medium">Ouro</span>
-                <div className="flex items-center gap-1 font-bold text-yellow-400">
-                <span>🪙</span>
-                <span>{player.playerCurrency.toLocaleString()}</span>
+                <div className="flex justify-between items-center rounded bg-stone-900/60 px-2.5 py-1.5 border border-stone-800">
+                    <span className="text-xs text-stone-400 font-medium">Nome</span>
+                    <span className="font-semibold text-amber-100">{player.playerName}</span>
                 </div>
-            </div>
 
-            <button 
-                type="button"
-                onClick={() => setCurrency(player.playerCurrency + 100)}
-                className="w-full mt-2 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5"
-            >
-                + 100 Ouro (Teste)
-            </button>
-            <button 
-                type="button"
-                onClick={() => setLevel(player.playerLevel + 1)}
-                className="w-full mt-2 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5"
-            >
-                + 1 Level
-            </button>
+                <div className="flex justify-between items-center rounded bg-stone-900/60 px-2.5 py-1.5 border border-stone-800">
+                    <span className="text-xs text-stone-400 font-medium">Ouro</span>
+                    <div className="flex items-center gap-1 font-bold text-yellow-400">
+                    <span>🪙</span>
+                    <span>{player.playerCurrency.toLocaleString()}</span>
+                    </div>
+                </div>
+
+                <button 
+                    type="button"
+                    onClick={() => open('inventory')}
+                    className="w-full mt-2 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5"
+                >
+                    🎒 Player Inventory
+                </button>
             </div>
         </div>
     );

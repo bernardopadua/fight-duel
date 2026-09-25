@@ -1,8 +1,11 @@
+//ITEM TYPES
+import type { ItemType, ItemConsumableType } from '@/game/types';
+
 export interface Item {
     id: number;
     itemName: string;
     itemPower: number;
     itemWeight: number;
-    itemType: string;
-    itemConsumableType: string | null;
+    itemType: ItemType;
+    itemConsumableType: ItemConsumableType | null;
 }
