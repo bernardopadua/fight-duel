@@ -568,6 +568,15 @@ class FightEngine:
                 return None
 
             def unlock_fight_pve():
+                channel_layer = get_channel_layer()
+                if channel_layer is None:
+                    raise Exception("Channel layer not found")
+
+                async_to_sync(channel_layer.group_send)(FIGHT_GROUP.format(fight_id=fight_id), {
+                    "type": "fight.update",
+                    "data": fs.to_dict()
+                })
+
                 if unlock_fight and \
                     cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
                 :
@@ -620,12 +629,22 @@ class FightEngine:
             p.save(update_fields=["player_status", "player_life"])
 
             def unlock_fight_pve():
-                if cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2):
+                channel_layer = get_channel_layer()
+                if channel_layer is None: #pyright
+                    raise Exception("Channel layer not found")
+
+                async_to_sync(channel_layer.group_send)(FIGHT_GROUP.format(fight_id=fight_id), {
+                    "type": "fight.update",
+                    "data": fs.to_dict()
+                })
+
+                if unlock_fight and \
+                    cache.add(UNLOCK_FIGHT_LOCK.format(fight_id=fight_id), True, timeout=2) \
+                :
                     fs.is_fight_over = True
                     cls.unlock_finish_fight_pve(fight_id, fs)
 
-            if unlock_fight:
-                transaction.on_commit(unlock_fight_pve)
+            transaction.on_commit(unlock_fight_pve)
 
         return fs
 

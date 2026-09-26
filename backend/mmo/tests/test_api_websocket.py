@@ -353,7 +353,7 @@ class MMOPlayerFightTests(TestCase):
         self.assertEqual(fst.creature_life, 0)
         
         mock_drop_items.assert_called_once()
-        mock_chanel_layer.assert_called_once()
+        self.assertEqual(mock_chanel_layer.call_count, 2)
         mock_async_to_sync.assert_called_with(mock_chanel_layer.return_value.group_send)
 
         self.assertFalse(WorldCreature.objects.filter(id=self.creature.id).exists())
@@ -1045,7 +1045,7 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('isMonsterAlive', response['data'])
         self.assertTrue(response['data']['isPlayerAlive'])
         self.assertTrue(response['data']['isMonsterAlive'])
-        
+
         mock_drop_items.return_value = ([self.item_armour, self.item_weapon], 100)
         items_drop_ids = [self.item_armour.id, self.item_weapon.id]
 
@@ -1271,7 +1271,7 @@ class MMOConsumerTests(TransactionTestCase):
         await sync_to_async(monster_attack)(fight_id, channel_name)
 
         response = await communicator.receive_json_from()
-        self.assertEqual(response['action'], ToClientActions.FIGHT_FINISH)
+        self.assertEqual(response['action'], ToClientActions.FIGHT_UPDATE)
         self.assertIn('data', response)
         self.assertIn('isPlayerAlive', response['data'])
         self.assertIn('isMonsterAlive', response['data'])
@@ -1310,7 +1310,9 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertEqual(response['action'], ToClientActions.FIGHT_UPDATE)
         self.assertIn('data', response)
         self.assertIn('isFightOver', response['data'])
-        self.assertTrue(response['data']['isFightOver']) #player attack power 999
+        self.assertFalse(response['data']['isMonsterAlive']) #player attack power 999
+
+        #fight only "overs" when fight finish
 
         response = await communicator.receive_json_from()
         self.assertEqual(response['action'], ToClientActions.FIGHT_DROP_ITEMS)

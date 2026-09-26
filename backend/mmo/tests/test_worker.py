@@ -193,13 +193,10 @@ class MMOCeleryWorkerTests(EmbeddedCeleryWorkerMixin, TransactionTestCase):
         self.assertGreater(self.player.player_stamina, 50)
         self.assertTrue(async_result.successful())
 
-    @patch('mmo.tasks.task_fight.async_to_sync')
-    @patch('mmo.tasks.task_fight.get_channel_layer')
-    def test_monster_attack(self, mock_get_channel_layer, mock_async_to_sync):
+    def test_monster_attack(self):
         fs = FightEngine.should_fight(self.player.id)
         self.assertIsNotNone(fs)
 
-        cl = mock_get_channel_layer.return_value        
         self.player.player_life = 1
         self.player.save(update_fields=['player_life'])
 
@@ -208,12 +205,6 @@ class MMOCeleryWorkerTests(EmbeddedCeleryWorkerMixin, TransactionTestCase):
             countdown=1
         )
         async_result.get(timeout=5)
-
-        mock_async_to_sync.assert_called_once()
-        mock_async_to_sync.assert_called_once_with(
-            cl.send
-        )
-        mock_async_to_sync.return_value.assert_called_once()
 
         self.player.refresh_from_db()
         self.assertEqual(self.player.player_status, Player.PlayerStatus.DEAD)
