@@ -3,11 +3,8 @@ import { useState } from 'react';
 //TYPES
 import type { DropItem } from '@/game/store/drop-store';
 
-//INTERFACE
-interface DropItemsProps {
-    items?: DropItem[];
-    onLoot?: (selectedItems: DropItem[]) => void;
-}
+//STORE
+import { useDropStore } from '@/game/store/drop-store';
 
 function getItemSprite(item: DropItem): string {
     const type = item.itemType?.toLowerCase();
@@ -23,7 +20,8 @@ function getItemSprite(item: DropItem): string {
     return `/sprites/items/${type || 'weapon'}.png`;
 }
 
-export function DropItems({ items = [], onLoot }: DropItemsProps) {
+export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => void}) {
+    const items = useDropStore((s) => s.items);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
     const toggleItem = (id: number) => {
@@ -42,7 +40,6 @@ export function DropItems({ items = [], onLoot }: DropItemsProps) {
 
     const handleLoot = () => {
         const selectedItems = items.filter((item) => selectedIds.includes(item.id));
-        
         //onLoot?.(selectedItems);
     };
 

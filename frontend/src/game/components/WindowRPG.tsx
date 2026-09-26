@@ -7,6 +7,7 @@ export function WindowRPG(
         icon,
         rightSide,
         parentContainerRef,
+        initialPosition,
         onClose
     }: 
     { 
@@ -15,14 +16,18 @@ export function WindowRPG(
         icon: string,
         rightSide: React.ReactNode,
         parentContainerRef: React.RefObject<HTMLDivElement>,
+        initialPosition?: {x: number, y: number},
         onClose?: () => void
      }
 ){
+    const initial = initialPosition ? initialPosition : {x: 0, y: 0};
+
     return (
         <motion.div drag dragMomentum={false} dragElastic={0}
             dragConstraints={parentContainerRef}
             onPointerDown={(e)=>{ e.stopPropagation(); }}
             onMouseDown={(e)=>{ e.stopPropagation(); }}
+            initial={initial}
             className="relative w-60 rounded border-2 border-amber-700/80 
                 scale-65 sm:scale-90 md:scale-100
                 bg-gradient-to-b from-stone-900/95 via-neutral-950/95 to-black/95 

@@ -1,5 +1,6 @@
 //STORE
 import { usePlayerStore } from '@/game/store/player-store';
+import { useDropStore } from '@/game/store/drop-store';
 import { useUIStore } from '@/game/store/ui-store';
 
 export function PlayerDetailsRightSide(){
@@ -16,7 +17,7 @@ export function PlayerDetailsRightSide(){
 
 export function PlayerDetails(){
     const player = usePlayerStore((s) => s.player);
-    const { open } = useUIStore();
+    const { open, toggle, setInitialPosition } = useUIStore();
 
     if (!player) return null;
 
@@ -51,6 +52,7 @@ export function PlayerDetails(){
                 >
                     🎒 Player Inventory
                 </button>
+
             </div>
         </div>
     );

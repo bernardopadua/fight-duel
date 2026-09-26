@@ -30,6 +30,8 @@ export class WorldScene extends Phaser.Scene {
     
     //Components
     private enterWorldBtn!: ImageButton;
+    private leaveBtn!: ImageButton;
+
     private leaveWorldBtn!: ImageButton;
     private moveInWorldBtn!: ImageButton;
 
@@ -74,6 +76,7 @@ export class WorldScene extends Phaser.Scene {
                     region.setVisible(false);
                     
                     this.enterWorldBtn.setVisible(false);
+                    this.leaveBtn.setVisible(false);
                     
                     this.leaveWorldBtn.setPosition(
                         this.activeHero.x - this.leaveWorldBtn.width / 2 - 15,
@@ -105,7 +108,7 @@ export class WorldScene extends Phaser.Scene {
             });
             
             this.activeWorld = null;
-            this.input.keyboard?.emit('keydown-ESC');
+            this.leaveWorlClicked();
             this.leaveWorldBtn.setVisible(false);
             this.moveInWorldBtn.setVisible(false);
         };
@@ -135,16 +138,32 @@ export class WorldScene extends Phaser.Scene {
         this.enterWorldBtn = new ImageButton(
             this,
             this.cameras.main.centerX, 
-            this.cameras.main.centerY + 200, 
+            this.cameras.main.centerY + 150, 
             'btn-world-ui',
             'btn-world-ui-disabled',
             'Enter World',
             {
-                width: 300,
-                height: 75,
+                width: 200,
+                height: 50,
                 textStyle: {
                     fontFamily: 'Georgia',
-                    fontSize: '24px'
+                    fontSize: '18px'
+                }
+            }
+        ).setVisible(false).setDepth(2);
+        this.leaveBtn = new ImageButton(
+            this,
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 200, 
+            'btn-world-ui',
+            'btn-world-ui-disabled',
+            'Leave',
+            {
+                width: 200,
+                height: 50,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '18px'
                 }
             }
         ).setVisible(false).setDepth(2);
@@ -188,6 +207,23 @@ export class WorldScene extends Phaser.Scene {
         this.activeHero = this.add.sprite(x, y, 'player-sprite').setDisplaySize(150, 150);
         this.activeHero.anims.createFromAseprite('player-sprite');
     }
+    leaveWorlClicked(){
+        this.tweens.add({
+            targets: this.activeHero,
+            y: this.activeHero.y-200,
+            duration: 250,
+            ease: 'Quadratic.easeOut',
+            onComplete: ()=>{
+                if(!this.activeHero) return;
+                this.activeHero?.destroy();
+                this.activeWorldWaypoint = undefined;
+            }
+        });
+        this.cameras.main.zoomTo(0.8, 500, 'Cubic.easeOut', true);
+        this.cameras.main.pan(this.cameras.main.centerX, this.cameras.main.centerY, 500, 'Cubic.easeOut', true);
+        this.enterWorldBtn.setVisible(false);
+        this.leaveBtn.setVisible(false);
+    }
     create() {
         const gameServices = this.registry.get('services') as GameServices;
 
@@ -208,6 +244,9 @@ export class WorldScene extends Phaser.Scene {
         //Buttons events
         this.enterWorldBtn.setOnClick(()=>{
             setPlayerWorld(this.selectedWorldId);
+        });
+        this.leaveBtn.setOnClick(()=>{
+            this.leaveWorlClicked();
         });
         this.leaveWorldBtn.setOnClick(()=>{
             gameServices.playerService.leaveWorld();
@@ -333,7 +372,11 @@ export class WorldScene extends Phaser.Scene {
 
                         this.enterWorldBtn.setPosition(
                             region.x,
-                            region.y + 180
+                            region.y + 150
+                        );
+                        this.leaveBtn.setPosition(
+                            region.x,
+                            region.y + 200
                         );
 
                         if (getPlayerLevel() > world.worldMaxLevel || getPlayerLevel() < world.worldMinLevel) {
@@ -341,6 +384,7 @@ export class WorldScene extends Phaser.Scene {
                         } else {
                             this.enterWorldBtn.setVisible(true).setEnabled();
                         }
+                        this.leaveBtn.setVisible(true);
                     }
                 });
             });
@@ -359,20 +403,7 @@ export class WorldScene extends Phaser.Scene {
             });
         });
         this.input.keyboard?.on('keydown-ESC', ()=>{
-            this.tweens.add({
-                targets: this.activeHero,
-                y: this.activeHero.y-200,
-                duration: 250,
-                ease: 'Quadratic.easeOut',
-                onComplete: ()=>{
-                    if(!this.activeHero) return;
-                    this.activeHero?.destroy();
-                    this.activeWorldWaypoint = undefined;
-                }
-            });
-            this.cameras.main.zoomTo(0.8, 500, 'Cubic.easeOut', true);
-            this.cameras.main.pan(this.cameras.main.centerX, this.cameras.main.centerY, 500, 'Cubic.easeOut', true);
-            this.enterWorldBtn.setVisible(false);
+            
         });
     }
     update() {            

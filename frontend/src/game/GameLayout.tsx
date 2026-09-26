@@ -10,7 +10,6 @@ import { useAuth } from '@/auth/auth-context';
 import { useGameContext } from '@/game/game-context';
 
 //STORE
-import { useDropStore } from '@/game/store/drop-store';
 import { useUIStore } from '@/game/store/ui-store';
 
 //COMPONENTS
@@ -25,7 +24,6 @@ export default function GameLayout() {
     const auth = useAuth();
     const services = useGameContext();
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const { items, setItems } = useDropStore();
     const { windows } = useUIStore(); 
 
     useEffect(()=>{
@@ -52,7 +50,7 @@ export default function GameLayout() {
                 <PlayerDetails />
             </WindowRPG>
 
-            {windows.playerStats && (
+            {windows.playerStats.open && (
                 <WindowRPG
                     title='Player Stats'
                     icon='⚔️'
@@ -64,23 +62,19 @@ export default function GameLayout() {
                 </WindowRPG>
             )}
 
-            {items.length > 0 && (
+            {windows.dropItems.open && (
                 <WindowRPG 
                     title='Drop Items' 
                     icon='📦' 
                     rightSide={null}
                     parentContainerRef={containerRef}
+                    initialPosition={windows.dropItems.initialPosition}
                 >
-                    <DropItems 
-                        items={items}
-                        onLoot={(selectedItems) => {
-                            setItems(items.filter((item) => !selectedItems.includes(item)));
-                        }}
-                    />
+                    <DropItems />
                 </WindowRPG>
             )}
 
-            {windows.inventory && (
+            {windows.inventory.open && (
                 <WindowRPG
                     title='Player Inventory'
                     icon='🎒'

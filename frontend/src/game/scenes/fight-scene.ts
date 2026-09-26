@@ -207,7 +207,27 @@ export class FightScene extends Phaser.Scene {
 
         const onFightFinish = (data: WebSocketFightFinish["data"]) => {
             if (!data.isPlayerAlive){
-                this.activePlayer.play({key: 'Death'});
+                const playerIsDead = () => new Promise<void>((resolve) => {
+                    this.activePlayer.play({key: 'Death'});
+                    this.activePlayer.once('animationcomplete-Death', ()=>{
+                        setTimeout(() => {
+                            this.tweens.add({
+                                targets: this.activePlayer,
+                                alpha: 0.01,
+                                duration: 2500,
+                                y: this.activePlayer.y - 400,
+                                onComplete: () => {
+                                    this.scene.wake('WorldScene');
+                                    const worldScene = this.scene.get('WorldScene') as any;
+                                    this.scene.stop();
+                                    worldScene.activeHero.play({key: 'Death'});
+                                }
+                            });
+                            resolve();
+                        }, 3000);
+                    });
+                });
+                this.eventEqueue.push(playerIsDead);
             } else if(data.isPlayerAlive && !data.isMonsterAlive) {
                 this.activeCreature.play({key: 'Death'});
             } else if(data.isPlayerAlive && data.isMonsterAlive){
