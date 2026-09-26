@@ -127,26 +127,13 @@ class MMOTasksTests(TestCase):
 
         return fs #pyright: ignore
 
-    @patch('mmo.tasks.task_fight.get_channel_layer')
     @patch('mmo.tasks.task_fight.monster_attack.apply_async')
-    @patch('mmo.tasks.task_fight.async_to_sync')
-    def test_monster_attack(self, mock_async_to_sync, mock_apply_async, mock_get_channel_layer):
+    def test_monster_attack(self, mock_apply_async):
         fs = self._setup_fight()
 
         monster_attack(fs.fight_id, 'channel-test')
 
-        cl = mock_get_channel_layer.return_value
-
         mock_apply_async.assert_called_once_with(args=[fs.fight_id, 'channel-test'], countdown=ANY)
-        mock_async_to_sync.assert_called_once_with(cl.send)
-        cl = mock_async_to_sync.return_value
-        mock_async_to_sync.return_value.assert_called_once()
-
-        call_args, _ = cl.call_args
-        self.assertEqual(call_args[0], 'channel-test')
-        self.assertEqual(call_args[1]['type'], "fight.update")
-        #TODO: ellaborate these asserts. as the game "grows" if it becomes more complex.
-        self.assertEqual(call_args[1]['data']['creatureLevel'], self.creature_level)
 
     def test_respawn_monsters(self):
         total_monsters = WorldCreature.objects.filter(

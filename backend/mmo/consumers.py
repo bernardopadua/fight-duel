@@ -410,7 +410,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
     async def _attack(self, data: dict) -> None:
         if not self.fight_id:
             return
-            
+
         if self.pvp:
             fs, fs_o = await sync_to_async(FightEngine.attack_pvp_player)(self.fight_id, self.player_id)
             if not fs and not fs_o:
@@ -432,11 +432,6 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             )
         else:
             fs = await sync_to_async(FightEngine.attack_monster)(self.fight_id)
-            if fs:
-                await self.send(json.dumps({
-                    "action": ToClientActions.FIGHT_UPDATE,
-                    "data": fs.to_dict()
-                }))
 
     async def _flee(self, data: dict) -> None:
         if not self.fight_id:
