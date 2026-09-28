@@ -4,7 +4,8 @@ import Phaser from 'phaser';
 import type { 
     WebSocketFightUpdate, 
     WebSocketFightFinish,
-    WebSocketFightDropItems
+    WebSocketFightDropItems,
+    WebSocketPlayerReviveCooldown
 } from '@/game/services/ws-messages';
 
 // OBJECTS
@@ -256,21 +257,29 @@ export class FightScene extends Phaser.Scene {
             useUIStore.getState().open('dropItems');
         };
 
+        const onPlayerReviveCooldown = (data: WebSocketPlayerReviveCooldown["data"]) => {
+            const worldScene = this.scene.get('WorldScene') as any;
+            worldScene.reviveCoolDown = data;
+        }
+
         const updatePlayerLifeAfterRecover = () => {
             const player = usePlayerStore.getState().player;
             this.lifePlayerStatus.update(player.playerLife, player.playerMaxLife);
             this.staminaPlayerStatus.update(player.playerStamina, player.playerMaxStamina);
-        };
-        
+        }
+
         EventBus.on(GAME_EVENTS.FIGHT_DROP_ITEMS, onFightDropItems);
         EventBus.on(GAME_EVENTS.FIGHT_UPDATE, onFightUpdate);
         EventBus.on(GAME_EVENTS.FIGHT_FINISH, onFightFinish);
+        EventBus.on(GAME_EVENTS.PLAYER_REVIVE_COOLDOWN, onPlayerReviveCooldown);
         EventBus.on(GAME_EVENTS.PLAYER_RECOVER_STATUS, updatePlayerLifeAfterRecover);
     
 
         const cleanUp = () => {
             EventBus.off(GAME_EVENTS.FIGHT_UPDATE, onFightUpdate);
             EventBus.off(GAME_EVENTS.FIGHT_FINISH, onFightFinish);
+            EventBus.off(GAME_EVENTS.FIGHT_DROP_ITEMS, onFightDropItems);
+            EventBus.off(GAME_EVENTS.PLAYER_REVIVE_COOLDOWN, onPlayerReviveCooldown);
             EventBus.off(GAME_EVENTS.PLAYER_RECOVER_STATUS, updatePlayerLifeAfterRecover);
         };
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanUp);

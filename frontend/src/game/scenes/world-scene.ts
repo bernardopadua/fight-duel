@@ -28,7 +28,9 @@ export class WorldScene extends Phaser.Scene {
     private gameServices!: GameServices;
 
     private activeHero?: Phaser.GameObjects.Sprite;
-    private isHeroDead: boolean = false;
+    
+    private showingDeathScreen: boolean = false;
+    private reviveCooldown: number;
 
     private activeWorldWaypoint?: Phaser.GameObjects.Arc;
     
@@ -241,7 +243,7 @@ export class WorldScene extends Phaser.Scene {
 
         const worldDescription = this.add.text(
             0, 0, 
-            `You are dead.\n\nYou will respawn in:\n20:00`, 
+            `You are dead.`, 
             {
                 fontSize: '14px',
                 align: 'center'
@@ -253,7 +255,7 @@ export class WorldScene extends Phaser.Scene {
 
         this.input.mouse.stopListeners();
 
-        let timeLeft = 5;
+        let timeLeft = this.reviveCooldown;
         this.time.addEvent({
             delay: 1000,
             repeat: timeLeft - 1,
@@ -263,6 +265,7 @@ export class WorldScene extends Phaser.Scene {
                 const secs = (timeLeft % 60).toString().padStart(2, '0');
                 worldDescription.setText(`You are dead.\n\nYou will respawn in:\n${mins}:${secs}`);
                 if (timeLeft <= 0) {
+                    EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
                     worldCard.destroy();
                     fx.destroy();
                     this.input.mouse.startListeners();
@@ -441,18 +444,10 @@ export class WorldScene extends Phaser.Scene {
             }
         });
 
-        // Keyboard events
-        this.input.keyboard?.once('keydown-SPACE', ()=>{
-            this.scene.start('FightScene',{
-                creatureName: 'Vagabonds',
-                creatureLevel: 12,
-                scenarioName: 'act1-world-scene'
-            });
-        });
-        this.input.keyboard?.on('keydown-ESC', ()=>{
-            
-        });
-        this.showDeathScreen();
+        if (usePlayerStore.getState().player.playerStatus == 'dead' && !this.showingDeathScreen) {
+            this.reviveCooldown = usePlayerStore.getState().player.playerReviveCooldownTime;
+            this.showDeathScreen();
+        }
     }
     update() {            
     }

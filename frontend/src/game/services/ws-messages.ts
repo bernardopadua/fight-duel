@@ -81,6 +81,13 @@ export interface WebSocketWorldLeaveMessage extends WebSocketMessage {
 
 export type WorldMessage = WebSocketWorldEnterMessage | WebSocketWorldLeaveMessage;
 
+export interface WebSocketPlayerReviveCooldownMessage extends WebSocketMessage {
+    action: "player.revive.cooldown";
+    data: number;
+};
+
+export type PlayerReviveCooldownMessage = WebSocketPlayerReviveCooldownMessage;
+
 export interface WebSocketRecoverStatusMessage extends WebSocketMessage {
     action: "player.recover.status";
     data: {
@@ -107,6 +114,7 @@ export type InventoryMessage = WebSocketInventoryUpdateMessage;
 
 export type AnyMessage = 
     | RecoverStatusMessage
+    | PlayerReviveCooldownMessage
     | FightMessage 
     | WorldMessage 
     | InventoryMessage;

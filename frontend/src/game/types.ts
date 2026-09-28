@@ -46,6 +46,7 @@ interface Player {
     playerLife: number;
     playerMaxLife: number;
     playerWorldInfo: WorldInfo | null;
+    playerReviveCooldownTime: number;
 }
 
 export type { Player, WorldInfo };
