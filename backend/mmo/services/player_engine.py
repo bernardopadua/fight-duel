@@ -18,13 +18,14 @@ from mmo.services.constants import (
     LEVELUP_PLUS_PLAYERPOWER, LEVEL_MAX,
     PLAYER_BASE_STAMINA_USAGE, STAMINA_USAGE_WEIGHT_VARIATION,
     STAMINA_USAGE_POWER_VARIATION, PLAYER_STAMINA_LINEAR_POWER,
-    PLAYER_STAMINA_TOTAL_POWER_REGEN
+    PLAYER_STAMINA_TOTAL_POWER_REGEN, PLAYER_TIME_DEATH_COOLDOWN
 )
 from mmo.constants import (
     USER_CHANNEL_WS_LOGGED,
 )
 
-import logging, time
+import logging
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,14 @@ class PlayerEngine:
             PlayerEngine.revive_dead_player(player)
 
     @staticmethod
-    def revive_dead_player(player: Player | None) -> None:
+    def revive_dead_player(player: Player | None, player_id: int | None = None) -> None:
+        if not player and player_id:
+            player = Player.objects.filter(
+                id=player_id,
+                player_status=Player.PlayerStatus.DEAD,
+                player_last_death_date__lte=(timezone.now() - timedelta(seconds=PLAYER_TIME_DEATH_COOLDOWN)),
+            ).first()
+
         if not player:
             logger.warning('Player not found')
             return
