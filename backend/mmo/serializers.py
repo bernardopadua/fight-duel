@@ -1,4 +1,4 @@
-from typing import Any
+from django.utils import timezone
 
 from rest_framework.serializers import (
     ModelSerializer, ValidationError,
@@ -7,7 +7,10 @@ from rest_framework.serializers import (
 
 from mmo.models import Player, World
 
-from typing import override
+from typing import override, Any
+from datetime import timedelta
+
+from mmo.services.constants import PLAYER_TIME_DEATH_COOLDOWN
 
 class CreatePlayerSerializer(ModelSerializer):
     class Meta:
@@ -30,6 +33,7 @@ class GetPlayerSerializer(ModelSerializer):
     player_equipped_weapon_item = SerializerMethodField()
     player_equipped_armour_item = SerializerMethodField()
     player_world_info = SerializerMethodField()
+    player_revive_cooldown_time = SerializerMethodField()
     
     class Meta:
         model = Player
@@ -40,7 +44,7 @@ class GetPlayerSerializer(ModelSerializer):
             'player_equipped_armour', 'player_equipped_armour_item',
             'player_status', 'player_max_weight', 
             'player_currency', 'player_life','player_max_life',
-            'player_world_info'
+            'player_world_info', 'player_revive_cooldown_time'
         ]
         read_only_fields = [
             'user', 'player_name', 'player_level', 'player_exp', 
@@ -49,9 +53,18 @@ class GetPlayerSerializer(ModelSerializer):
             'player_equipped_armour', 'player_equipped_armour_item',
             'player_status', 'player_max_weight', 
             'player_currency', 'player_life','player_max_life',
-            'player_world_info'
+            'player_world_info', 'player_revive_cooldown_time'
         ]
     
+    def get_player_revive_cooldown_time(self, obj: Player) -> int:
+        if obj.player_status != Player.PlayerStatus.DEAD or obj.player_last_death_date is None:
+            return 0
+        
+        revive_at = obj.player_last_death_date + timedelta(seconds=PLAYER_TIME_DEATH_COOLDOWN)
+        remaining = (revive_at - timezone.now()).total_seconds()
+
+        return max(0, int(remaining))
+
     def get_player_world_info(self, obj: Player) -> dict[str, Any] | None:
         if obj.player_world is None:
             return None

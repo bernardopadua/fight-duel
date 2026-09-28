@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.conf import settings
 from django.core.cache import cache
+from django.utils import timezone
 
 from unittest.mock import patch
 
@@ -82,6 +83,26 @@ class MMOPlayerTests(APITestCase):
         self.assertIn("playerName", response.json())
         self.assertEqual(response.json()['playerName'], 'TestPlayer')
         self.assertEqual(response.json()['playerLevel'], 10)
+    
+    def test_get_player_dead(self):
+        Player.objects.create(
+            user=self.user,
+            player_name='TestPlayer',
+            player_level=10,
+            player_status=Player.PlayerStatus.DEAD,
+            player_last_death_date=timezone.now()
+        )
+        response = self.client.get(
+            '/api/mmo/player/', 
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('playerName', response.json())
+        self.assertEqual(response.json()['playerName'], 'TestPlayer')
+        self.assertEqual(response.json()['playerLevel'], 10)
+        self.assertEqual(response.json()['playerStatus'], Player.PlayerStatus.DEAD)
+        self.assertIn('playerReviveCooldownTime', response.json())
+        self.assertGreater(response.json()['playerReviveCooldownTime'], 100)
 
     def test_get_player_with_equipped_items(self):
         response = self.client.post(
@@ -988,6 +1009,55 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('isMonsterAlive', response['data'])
         self.assertTrue(response['data']['isPlayerAlive'])
         self.assertFalse(response['data']['isMonsterAlive'])
+
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT_FINISH)
+        self.assertIn('data', response)
+        self.assertIn('isFightOver', response['data'])
+        self.assertTrue(response['data']['isFightOver'])
+
+        await communicator.disconnect()
+
+    @patch('mmo.consumers.monster_attack.apply_async')
+    async def test_websocket_move_fight_and_die(self, mock_monster_attack):
+        self.creature.creature_level = 9999
+        await self.creature.asave(update_fields=['creature_level'])
+        
+        communicator = await self._connect_to_websocket()
+
+        await communicator.send_json_to({'action': ToServerActions.MOVE})
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['action'], ToClientActions.FIGHT)
+        self.assertIn('data', response)
+        self.assertIn('fightId', response['data'])
+        self.assertIsNotNone(response['data']['fightId'])
+        self.assertIn('creatureName', response['data'])
+        self.assertIn('creatureLevel', response['data'])
+        self.assertIn('creatureLife', response['data'])
+        self.assertIn('creatureMaxLife', response['data'])
+
+        mock_monster_attack.assert_called_once() 
+        channel_name = mock_monster_attack.call_args.kwargs['args'][1]
+
+        fight_id = response['data']['fightId']
+
+        #monster attack
+        from mmo.tasks.task_fight import monster_attack
+        await sync_to_async(monster_attack)(fight_id, channel_name)
+
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.FIGHT_UPDATE)
+        self.assertIn('data', response)
+        self.assertIn('isPlayerAlive', response['data'])
+        self.assertIn('isMonsterAlive', response['data'])
+        self.assertFalse(response['data']['isPlayerAlive'])
+        self.assertTrue(response['data']['isMonsterAlive'])
+
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.PLAYER_REVIVE_COOLDOWN)
+        self.assertIn('data', response)
+        self.assertIsNotNone(response['data'])
 
         response = await communicator.receive_json_from()
         self.assertEqual(response['action'], ToClientActions.FIGHT_FINISH)
