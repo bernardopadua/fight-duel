@@ -56,18 +56,22 @@ def recover_player_status() -> None:
         PlayerEngine.recover_players_status(players)
 
 @shared_task
-def revive_dead_players() -> None:
+def revive_dead_players(player_id: int | None = None) -> None:
+    #Adpted to revive one player.
     players = Player.objects.filter(
         player_status=Player.PlayerStatus.DEAD,
-        player_last_death_date__lte=(timezone.now() - timedelta(seconds=PLAYER_TIME_DEATH_COOLDOWN))
-    ).all()
+        player_last_death_date__lte=(timezone.now() - timedelta(seconds=PLAYER_TIME_DEATH_COOLDOWN - 1)),
+    )
+    if player_id:
+        players = players.filter(
+            id=player_id
+        )
     PlayerEngine.revive_dead_players(players)
 
 @shared_task
 def tick() -> None:
     respawn_creatures.delay()
     recover_player_status.delay()
-    revive_dead_players.delay()
 
 @shared_task
 def clean_orphan_items() -> None:

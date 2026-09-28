@@ -51,6 +51,8 @@ class ToServerActions:
     ACCEPT_MATCHMAKING = "accept.matchmaking"
     REJECT_MATCHMAKING = "reject.matchmaking"
 
+    PLAYER_REVIVE = "player.revive"
+
     MOVE = "move"
     ATTACK = "attack"
     FLEE = "flee"
@@ -159,7 +161,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             logger.error("Player %s is matchmaking but received action %s", self.user.id, data.get("action"))
             return
 
-        if not self.player_is_alive:
+        if not self.player_is_alive and data.get("action") != ToServerActions.PLAYER_REVIVE:
             await self.send(json.dumps({
                 "action": ToClientActions.ERROR,
                 "data": "Player is dead, please wait for revival"
@@ -178,7 +180,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             ToServerActions.LOOT: self._loot,
             ToServerActions.USE_ITEM: self._use_item,
             ToServerActions.GET_INVENTORY: self._get_inventory,
-            ToServerActions.SALVAGE_ITEM: self._salvage_item
+            ToServerActions.SALVAGE_ITEM: self._salvage_item,
+            ToServerActions.PLAYER_REVIVE: self._player_revive,
         }.get(data.get("action", ''))
 
         if handler:
@@ -392,7 +395,10 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             logger.error("No fight id for user %s", self.user.id)
             return
         await sync_to_async(MatchmakingEngine.inform_group_matchmaking_rejected)(self.fight_id, self.player_id)
-    
+
+    async def _player_revive(self, data: dict) -> None:
+        await sync_to_async(PlayerEngine.revive_dead_player)(None, player_id=self.player_id)
+
     async def _move(self, data: dict) -> None:
         if (fs := await sync_to_async(FightEngine.should_fight)(self.player_id)) and fs:
             self.fight_id = fs.fight_id
