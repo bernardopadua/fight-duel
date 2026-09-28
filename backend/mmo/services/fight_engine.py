@@ -11,7 +11,7 @@ from mmo.services.player_engine import PlayerEngine
 from .constants import (
     LEVEL_MAX, PLAYER_IS_ATTACKING, TEMPO_MIN_ATTACK, TEMPO_MAX_ATTACK,
     MONSTER_MAX_ATTACK, MONSTER_MIN_ATTACK, PLAYER_POWER_ATTACK_VARIATION,
-    MONSTER_POWER_ATTACK_VARIATION, UNLOCK_FIGHT_LOCK
+    MONSTER_POWER_ATTACK_VARIATION, UNLOCK_FIGHT_LOCK, PLAYER_TIME_DEATH_COOLDOWN
 )
 from mmo.constants import FIGHT_GROUP, USER_CHANNEL_WS_LOGGED
 from mmo.services.drop_engine import DropEngine
@@ -322,6 +322,16 @@ class FightEngine:
         cl = get_channel_layer()
         if cl is None:
             return
+
+        if fs and not fs.is_player_alive:
+            async_to_sync(cl.group_send)(
+                FIGHT_GROUP.format(fight_id=fight_id),
+                {
+                    "type": "player.revive.cooldown",
+                    "fightId": fight_id,
+                    "data": PLAYER_TIME_DEATH_COOLDOWN
+                }
+            )
 
         async_to_sync(cl.group_send)(
             FIGHT_GROUP.format(fight_id=fight_id), 
