@@ -40,6 +40,7 @@ class ToClientActions:
     EARNED_CURRENCY = "earned.currency"
 
     PLAYER_REVIVE = "player.revive"
+    PLAYER_REVIVE_COOLDOWN = "player.revive.cooldown"
     PLAYER_RECOVER_STATUS = "player.recover.status"
 
 class ToServerActions:
@@ -323,6 +324,17 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         data = event['data']
         await self.send(json.dumps({
             "action": ToClientActions.PLAYER_RECOVER_STATUS,
+            "data": data
+        }))
+
+    async def player_revive_cooldown(self, event: dict) -> None:
+        data = event['data']
+        if not data or not isinstance(data, int):
+            logger.error('Invalid data for player %s revive cooldown', self.user.id)
+            return
+
+        await self.send(json.dumps({
+            "action": ToClientActions.PLAYER_REVIVE_COOLDOWN,
             "data": data
         }))
 
