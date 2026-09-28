@@ -3,7 +3,8 @@ import Phaser from 'phaser';
 // WSocket MESSAGES
 import type { 
     WebSocketFightUpdate, 
-    WebSocketFightFinish 
+    WebSocketFightFinish,
+    WebSocketFightDropItems
 } from '@/game/services/ws-messages';
 
 // OBJECTS
@@ -13,9 +14,14 @@ import { StatusBar } from '@/game/objects/status-bar';
 // EVENTBUS
 import { EventBus, GAME_EVENTS } from '@/game/event-bus';
 
+//STORES
+import { usePlayerStore } from '@/game/store/player-store';
+import { useDropStore } from '@/game/store/drop-store';
+import { useUIStore } from '@/game/store/ui-store';
+
 // SERVICES
 import type { GameServices } from '@/game/game-context';
-import { usePlayerStore } from '../store/player-store';
+
 
 interface FightData {
     creatureName: string;
@@ -203,7 +209,6 @@ export class FightScene extends Phaser.Scene {
 
             this.processEventEqueue();
         };
-        EventBus.on(GAME_EVENTS.FIGHT_UPDATE, onFightUpdate);
 
         const onFightFinish = (data: WebSocketFightFinish["data"]) => {
             if (!data.isPlayerAlive){
@@ -245,14 +250,23 @@ export class FightScene extends Phaser.Scene {
                 });
             }
         };
-        EventBus.on(GAME_EVENTS.FIGHT_FINISH, onFightFinish);
+
+        const onFightDropItems = (data: WebSocketFightDropItems['data']) => {
+            useDropStore.getState().setItems(data);
+            useUIStore.getState().open('dropItems');
+        };
 
         const updatePlayerLifeAfterRecover = () => {
             const player = usePlayerStore.getState().player;
             this.lifePlayerStatus.update(player.playerLife, player.playerMaxLife);
             this.staminaPlayerStatus.update(player.playerStamina, player.playerMaxStamina);
         };
+        
+        EventBus.on(GAME_EVENTS.FIGHT_DROP_ITEMS, onFightDropItems);
+        EventBus.on(GAME_EVENTS.FIGHT_UPDATE, onFightUpdate);
+        EventBus.on(GAME_EVENTS.FIGHT_FINISH, onFightFinish);
         EventBus.on(GAME_EVENTS.PLAYER_RECOVER_STATUS, updatePlayerLifeAfterRecover);
+    
 
         const cleanUp = () => {
             EventBus.off(GAME_EVENTS.FIGHT_UPDATE, onFightUpdate);

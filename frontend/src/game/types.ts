@@ -26,6 +26,8 @@ interface Item {
     itemWeight: number
 };
 
+type PlayerStatus = 'idle' | 'dead' | 'fighting';
+
 interface Player {
     user: number;
     playerName: string;
@@ -38,12 +40,12 @@ interface Player {
     playerEquippedWeaponItem: Item | null;
     playerEquippedArmour:  number | null;
     playerEquippedArmourItem: Item | null;
-    playerStatus: string;
+    playerStatus: PlayerStatus;
     playerMaxWeight: number;
     playerCurrency: number;
     playerLife: number;
     playerMaxLife: number;
-    playerWorldInfo: WorldInfo | null
+    playerWorldInfo: WorldInfo | null;
 }
 
 export type { Player, WorldInfo };

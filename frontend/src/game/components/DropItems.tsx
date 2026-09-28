@@ -5,6 +5,7 @@ import type { DropItem } from '@/game/store/drop-store';
 
 //STORE
 import { useDropStore } from '@/game/store/drop-store';
+import { useUIStore } from '@/game/store/ui-store';
 
 function getItemSprite(item: DropItem): string {
     const type = item.itemType?.toLowerCase();
@@ -41,6 +42,12 @@ export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => 
     const handleLoot = () => {
         const selectedItems = items.filter((item) => selectedIds.includes(item.id));
         //onLoot?.(selectedItems);
+    };
+
+    const handleDiscard = () => {
+        useDropStore.getState().setItems([]);
+        setSelectedIds([]);
+        useUIStore.getState().close('dropItems');
     };
 
     return (
@@ -89,14 +96,24 @@ export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => 
                 )}
             </div>
 
-            <button
-                type="button"
-                disabled={selectedIds.length === 0}
-                onClick={handleLoot}
-                className="w-full rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-                {selectedIds.length > 0 ? `Loot (${selectedIds.length})` : 'Loot'}
-            </button>
+            <div className="flex gap-2 pt-1 border-t border-amber-700/40">
+                <button
+                    type="button"
+                    disabled={selectedIds.length === 0}
+                    onClick={handleLoot}
+                    className="flex-1 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    {selectedIds.length > 0 ? `Loot (${selectedIds.length})` : 'Loot'}
+                </button>
+                
+                <button
+                    type="button"
+                    onClick={handleDiscard}
+                    className="flex-1 rounded border border-red-500/80 bg-gradient-to-b from-red-700 via-red-800 to-red-950 py-1.5 text-xs font-bold tracking-wider text-red-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    Discard
+                </button>
+            </div>
         </div>
     );
 }

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useGameContext } from '@/game/game-context';
 
 //STORE
+import { usePlayerStore } from '@/game/store/player-store';
 import { usePlayerInventoryStore, type PlayerInventoryItem } from '@/game/store/player-inventory-store';
 
 //TYPES
@@ -25,6 +26,7 @@ function getItemSprite(item: PlayerInventoryItem): string {
 }
 
 export function PlayerInventory() {
+    const player = usePlayerStore((s) => s.player);
     const items = usePlayerInventoryStore((s) => s.items);
 
     const { playerInventoryService } = useGameContext();
@@ -33,6 +35,10 @@ export function PlayerInventory() {
 
     const consumables = items.filter((i) => i.itemType?.toLowerCase() === 'consumable');
     const nonConsumables = items.filter((i) => i.itemType?.toLowerCase() !== 'consumable');
+
+    const totalWeight = items.reduce((acc, item) => acc + (item.itemWeight || 0), 0);
+    const maxWeight = player.playerMaxWeight;
+    const isOverweight = maxWeight > 0 && totalWeight >= maxWeight;
 
     const handleSelect = (item: PlayerInventoryItem) => {
         setSelectedItem((prev) => (prev?.id === item.id ? null : item));
@@ -59,9 +65,24 @@ export function PlayerInventory() {
     return (
         <div className="flex flex-col gap-3 text-stone-200">
             <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold tracking-widest text-amber-400 uppercase">
-                    Equipment ({nonConsumables.length})
-                </span>
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold tracking-widest text-amber-400 uppercase">
+                        Equipment ({nonConsumables.length})
+                    </span>
+                    <div 
+                        className="flex items-center gap-1 text-[10px] bg-stone-950/80 px-2 py-0.5 rounded border border-stone-800/90 shadow-inner"
+                        title="Inventory Weight / Maximum Capacity"
+                    >
+                        <span className="text-[9px] uppercase tracking-wider text-stone-400 font-semibold">Weight:</span>
+                        <span className={`font-bold ${isOverweight ? 'text-red-400' : 'text-amber-300'}`}>
+                            {totalWeight}
+                        </span>
+                        <span className="text-stone-600">/</span>
+                        <span className="text-stone-300 font-semibold">
+                            {maxWeight}
+                        </span>
+                    </div>
+                </div>
                 <div className="flex flex-wrap gap-1.5 p-2 bg-stone-950/80 rounded border border-stone-800/80 min-h-[50px] max-h-36 overflow-y-auto">
                     {nonConsumables.length === 0 ? (
                         <span className="text-[11px] text-stone-500 italic m-auto">No equipment</span>

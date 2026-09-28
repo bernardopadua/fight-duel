@@ -25,7 +25,11 @@ interface WorldSceneActiveTweens {
 }
 
 export class WorldScene extends Phaser.Scene {
+    private gameServices!: GameServices;
+
     private activeHero?: Phaser.GameObjects.Sprite;
+    private isHeroDead: boolean = false;
+
     private activeWorldWaypoint?: Phaser.GameObjects.Arc;
     
     //Components
@@ -106,7 +110,7 @@ export class WorldScene extends Phaser.Scene {
                     worldTween.waypoint.restart();
                 }
             });
-            
+
             this.activeWorld = null;
             this.leaveWorlClicked();
             this.leaveWorldBtn.setVisible(false);
@@ -224,8 +228,51 @@ export class WorldScene extends Phaser.Scene {
         this.enterWorldBtn.setVisible(false);
         this.leaveBtn.setVisible(false);
     }
+    showDeathScreen(){
+        EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
+
+        const fx = this.cameras.main.filters.external.addColorMatrix();
+        fx.colorMatrix.blackWhite();
+
+        const worldCard = this.add.container(this.cameras.main.width/2, this.cameras.main.height/2).setDepth(1);
+        const background = this.add.image(0, 0, 'world-selector').setDisplaySize(
+            300, 175
+        ).setAlpha(0.9);
+
+        const worldDescription = this.add.text(
+            0, 0, 
+            `You are dead.\n\nYou will respawn in:\n20:00`, 
+            {
+                fontSize: '14px',
+                align: 'center'
+            }
+        ).setOrigin(0.5);
+
+        worldCard.add([background, worldDescription]);
+        worldCard.setVisible(true);
+
+        this.input.mouse.stopListeners();
+
+        let timeLeft = 5;
+        this.time.addEvent({
+            delay: 1000,
+            repeat: timeLeft - 1,
+            callback: () => {
+                timeLeft--;
+                const mins = Math.floor(timeLeft / 60);
+                const secs = (timeLeft % 60).toString().padStart(2, '0');
+                worldDescription.setText(`You are dead.\n\nYou will respawn in:\n${mins}:${secs}`);
+                if (timeLeft <= 0) {
+                    worldCard.destroy();
+                    fx.destroy();
+                    this.input.mouse.startListeners();
+                }
+            }
+        });
+
+    }
     create() {
-        const gameServices = this.registry.get('services') as GameServices;
+        this.gameServices = this.registry.get('services') as GameServices;
 
         const getPlayerLevel = () => usePlayerStore.getState().player?.playerLevel || 0;
         const setPlayerWorld = (worldId: number) => {
@@ -405,6 +452,7 @@ export class WorldScene extends Phaser.Scene {
         this.input.keyboard?.on('keydown-ESC', ()=>{
             
         });
+        this.showDeathScreen();
     }
     update() {            
     }
