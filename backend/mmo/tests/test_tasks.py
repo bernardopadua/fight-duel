@@ -330,3 +330,17 @@ class MMOTasksTests(TestCase):
 
         self.player.refresh_from_db()
         self.assertEqual(self.player.player_status, Player.PlayerStatus.IDLE)
+    
+    def test_revive_one_dead_players(self):
+        with patch('mmo.services.player_engine.timezone.now', return_value=timezone.now() - timedelta(minutes=3)):
+            PlayerEngine.kill_player(self.player)
+
+        cache.add(
+            USER_CHANNEL_WS_LOGGED.format(user_id=self.user.id),
+            'channel_test',
+            timeout=10
+        )
+        revive_dead_players(player_id=self.player.id)
+
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.player_status, Player.PlayerStatus.IDLE)

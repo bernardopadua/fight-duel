@@ -17,6 +17,7 @@ from mmo.constants import FIGHT_GROUP, USER_CHANNEL_WS_LOGGED
 from mmo.services.drop_engine import DropEngine
 
 from mmo.tasks.task_player import apply_death_penalty_to_player
+from mmo.tasks.task_world import revive_dead_players
 
 from random import randint
 from dataclasses import dataclass
@@ -332,6 +333,7 @@ class FightEngine:
                     "data": PLAYER_TIME_DEATH_COOLDOWN
                 }
             )
+            revive_dead_players.apply_async(args=[p.id], countdown=PLAYER_TIME_DEATH_COOLDOWN)
 
         async_to_sync(cl.group_send)(
             FIGHT_GROUP.format(fight_id=fight_id), 
