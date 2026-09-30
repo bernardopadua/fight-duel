@@ -259,7 +259,7 @@ class PlayerEngine:
         player.player_life = PLAYER_INITIAL_REVIVE_LIFE
         player.player_status = Player.PlayerStatus.IDLE
         player.player_last_death_date = None
-        player.save(update_fields=['player_status', 'player_last_death_date'])
+        player.save(update_fields=['player_life', 'player_status', 'player_last_death_date'])
 
         player_channel = cache.get(
             USER_CHANNEL_WS_LOGGED.format(user_id=player.user_id)
