@@ -10,7 +10,8 @@ import type {
     WebSocketWorldEnterMessage,
     WebSocketWorldLeaveMessage,
     WebSocketInventoryUpdateMessage,
-    WebSocketPlayerReviveCooldownMessage
+    WebSocketPlayerReviveCooldownMessage,
+    WebSocketPlayerReviveMessage
  } from '@/game/services/ws-messages';
 
 // EVENT EMITTER
@@ -24,6 +25,7 @@ import { getPlayer } from "@/api/player";
 
 export interface PlayerService {
     getPlayer: (token: string) => Promise<boolean>;
+    revivePlayer: () => void;
     enterWorld: (worldId: number) => void;
     leaveWorld: () => void;
     moveInWorld: () => void;
@@ -45,6 +47,9 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         const totalInventoryWeight = message.data.reduce((acc, item) => acc + item.itemWeight, 0);
         usePlayerStore.getState().setTotalInventoryWeight(totalInventoryWeight);
     };
+    const respRevivePlayer = (_: WebSocketPlayerReviveMessage) => {
+        EventBus.emit(GAME_EVENTS.PLAYER_REVIVE);
+    };
     const respPlayerReviveCooldown = (message: WebSocketPlayerReviveCooldownMessage) => {
         EventBus.emit(GAME_EVENTS.PLAYER_REVIVE_COOLDOWN, message.data);
     };
@@ -53,6 +58,7 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
     ws.subscribe('world.leave', respLeaveWorld);
     ws.subscribe('inventory.update', respInventoryUpdate);
     ws.subscribe('player.revive.cooldown', respPlayerReviveCooldown);
+    ws.subscribe('player.revive', respRevivePlayer);
 
     return {
         getPlayer: async (token: string) => {
@@ -63,6 +69,11 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
             } else {
                 return false;
             }
+        },
+        revivePlayer: () => {
+            ws.send({
+                action: 'player.revive'
+            });
         },
         enterWorld: (worldId: number) => {
             ws.send({

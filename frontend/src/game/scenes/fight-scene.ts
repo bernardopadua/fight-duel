@@ -39,12 +39,10 @@ export class FightScene extends Phaser.Scene {
     private activePlayer! : Phaser.GameObjects.Sprite;
     private lifePlayerStatus! : StatusBar;
     private staminaPlayerStatus! : StatusBar;
-    private isPlayerAttacking: boolean = false;
 
     // Creature
     private activeCreature! : Phaser.GameObjects.Sprite;
     private lifeCreatureStatus! : StatusBar;
-    private isCreatureAttacking: boolean = false;
 
     private eventEqueue: Array<() => Promise<void>> = [];
     private isProcessing: boolean = false;
@@ -100,7 +98,6 @@ export class FightScene extends Phaser.Scene {
 
         const onFightUpdate = (data: WebSocketFightUpdate["data"]) => {
             const creatureAttacking = () => new Promise<void>((resolve) => {
-                this.isCreatureAttacking = true;
                 this.activeCreature.play({key: 'Walk', repeat: -1});
                 this.tweens.add({
                     targets: this.activeCreature,
@@ -150,7 +147,6 @@ export class FightScene extends Phaser.Scene {
             });
 
             const playerAttacking = () => new Promise<void>((resolve) => {
-                this.isPlayerAttacking = true;
                 this.activePlayer.play({key: 'Walk', repeat: -1});
                 this.tweens.add({
                     targets: this.activePlayer,
@@ -223,10 +219,7 @@ export class FightScene extends Phaser.Scene {
                                 duration: 2500,
                                 y: this.activePlayer.y - 400,
                                 onComplete: () => {
-                                    this.scene.wake('WorldScene');
-                                    const worldScene = this.scene.get('WorldScene') as any;
                                     this.scene.stop();
-                                    worldScene.activeHero.play({key: 'Death'});
                                 }
                             });
                             resolve();
@@ -258,8 +251,10 @@ export class FightScene extends Phaser.Scene {
         };
 
         const onPlayerReviveCooldown = (data: WebSocketPlayerReviveCooldown["data"]) => {
+            this.scene.wake('WorldScene');
             const worldScene = this.scene.get('WorldScene') as any;
-            worldScene.reviveCoolDown = data;
+            worldScene.reviveCooldown = data;
+            worldScene.showDeathScreen();
         }
 
         const updatePlayerLifeAfterRecover = () => {

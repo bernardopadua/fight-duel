@@ -98,6 +98,12 @@ export interface WebSocketRecoverStatusMessage extends WebSocketMessage {
 
 export type RecoverStatusMessage = WebSocketRecoverStatusMessage;
 
+export interface WebSocketPlayerReviveMessage extends WebSocketMessage {
+    action: "player.revive";
+};
+
+export type PlayerReviveMessage = WebSocketPlayerReviveMessage;
+
 export interface WebSocketInventoryUpdateMessage extends WebSocketMessage {
     action: "inventory.update";
     data: {
@@ -117,7 +123,8 @@ export type AnyMessage =
     | PlayerReviveCooldownMessage
     | FightMessage 
     | WorldMessage 
-    | InventoryMessage;
+    | InventoryMessage
+    | PlayerReviveMessage;
 
 // SEND MESSAGES
 export interface WebSocketSendMessage {
@@ -165,6 +172,10 @@ export interface WebSocketSalvageItemMessage extends WebSocketSendMessage {
     data: number;
 };
 
+export interface WebSocketSendRevivePlayerMessage extends WebSocketSendMessage {
+    action: "player.revive";
+};
+
 export type SendMessage = 
     | WebSocketSendAttackMessage 
     | WebSocketSendFleeMessage
@@ -174,4 +185,5 @@ export type SendMessage =
     | WebSocketSendLootItemsMessage
     | WebSocketGetInventoryMessage
     | WebSocketUseItemMessage
-    | WebSocketSalvageItemMessage;
+    | WebSocketSalvageItemMessage
+    | WebSocketSendRevivePlayerMessage;

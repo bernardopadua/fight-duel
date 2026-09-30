@@ -9,6 +9,7 @@ export const GAME_EVENTS = {
     PLAYER_RECOVER_STATUS: 'player:recover.status',
 
     //Revive
+    PLAYER_REVIVE: 'player:revive',
     PLAYER_REVIVE_COOLDOWN: 'player:revive.cooldown',
     
     //Player

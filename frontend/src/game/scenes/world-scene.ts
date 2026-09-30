@@ -27,7 +27,8 @@ interface WorldSceneActiveTweens {
 export class WorldScene extends Phaser.Scene {
     private gameServices!: GameServices;
 
-    private activeHero?: Phaser.GameObjects.Sprite;
+    private activeHero!: Phaser.GameObjects.Sprite;
+    private heroIsDead: boolean = false;
     
     private showingDeathScreen: boolean = false;
     private reviveCooldown: number;
@@ -46,7 +47,13 @@ export class WorldScene extends Phaser.Scene {
     private selectedWorldId: number = 0;
     private selectedWorldScene: string;
 
+    private reviveBtn!: ImageButton;
+
     private worldTweens: Map<number, WorldSceneActiveTweens> = new Map<number, WorldSceneActiveTweens>();
+
+    //ShowDeathScreen
+    private cameraColorMatrixEffect: Phaser.Filters.ColorMatrix | null;
+    private showDeathScreenContainer: Phaser.GameObjects.Container | null;
 
     constructor() {
         super({ key: 'WorldScene' });
@@ -97,7 +104,6 @@ export class WorldScene extends Phaser.Scene {
                 }
             });
         };
-        EventBus.on(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
 
         const onWorldLeave = () => {
             this.worldTweens.forEach((worldTween, idx) => {
@@ -118,7 +124,6 @@ export class WorldScene extends Phaser.Scene {
             this.leaveWorldBtn.setVisible(false);
             this.moveInWorldBtn.setVisible(false);
         };
-        EventBus.on(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
 
         const onFightActive = (data: WebSocketFightMessage["data"]) => {
             this.scene.sleep();
@@ -130,7 +135,16 @@ export class WorldScene extends Phaser.Scene {
                 scenarioName: this.activeWorldFightScene
             });
         };
+
+        const onRevivePlayer = () => {
+            EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
+            this.showDeathScreen(false);
+        };
+
+        EventBus.on(GAME_EVENTS.ENTER_WORLD, onWorldEnter);        
+        EventBus.on(GAME_EVENTS.LEAVE_WORLD, onWorldLeave);
         EventBus.on(GAME_EVENTS.FIGHT, onFightActive);
+        EventBus.on(GAME_EVENTS.PLAYER_REVIVE, onRevivePlayer);
 
         const cleanUp = () => {
             EventBus.off(GAME_EVENTS.ENTER_WORLD, onWorldEnter);
@@ -205,6 +219,22 @@ export class WorldScene extends Phaser.Scene {
                 }
             }
         ).setVisible(false).setDepth(2);
+        this.reviveBtn = new ImageButton(
+            this,
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 200, 
+            'btn-world-ui',
+            'btn-world-ui-disabled',
+            'Revive Player',
+            {
+                width: 200,
+                height: 50,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '18px'
+                }
+            }
+        ).setVisible(false).setDepth(2);
     }
     createPlayer(x: number, y: number){
         if(this.activeHero)
@@ -230,13 +260,36 @@ export class WorldScene extends Phaser.Scene {
         this.enterWorldBtn.setVisible(false);
         this.leaveBtn.setVisible(false);
     }
-    showDeathScreen(){
+    showDeathScreen(show: boolean = true){
+        if(!show){
+            this.heroIsDead = false;
+            this.activeHero.play({key: 'Idle', repeat: -1});
+            this.showDeathScreenContainer?.destroy();
+            this.cameraColorMatrixEffect?.destroy();
+            this.showDeathScreenContainer = null;
+            this.cameraColorMatrixEffect = null;
+
+            if (usePlayerStore.getState().player.playerWorldInfo){
+                this.leaveWorldBtn.setVisible(true);
+                this.moveInWorldBtn.setVisible(true);
+            }
+
+            this.input.mouse.startListeners();
+            return;
+        }
+
+        this.activeHero.play({key: 'Death'});
+        this.heroIsDead = true;
         EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
 
-        const fx = this.cameras.main.filters.external.addColorMatrix();
-        fx.colorMatrix.blackWhite();
+        this.leaveWorldBtn.setVisible(false);
+        this.moveInWorldBtn.setVisible(false);
 
-        const worldCard = this.add.container(this.cameras.main.width/2, this.cameras.main.height/2).setDepth(1);
+        this.input.mouse.stopListeners();
+        this.cameraColorMatrixEffect = this.cameras.main.filters.external.addColorMatrix();
+        this.cameraColorMatrixEffect.colorMatrix.blackWhite();
+
+        this.showDeathScreenContainer = this.add.container(this.cameras.main.width/2, this.cameras.main.height/2).setScrollFactor(0).setDepth(1);
         const background = this.add.image(0, 0, 'world-selector').setDisplaySize(
             300, 175
         ).setAlpha(0.9);
@@ -250,10 +303,8 @@ export class WorldScene extends Phaser.Scene {
             }
         ).setOrigin(0.5);
 
-        worldCard.add([background, worldDescription]);
-        worldCard.setVisible(true);
-
-        this.input.mouse.stopListeners();
+        this.showDeathScreenContainer.add([background, worldDescription]);
+        this.showDeathScreenContainer.setVisible(true);
 
         let timeLeft = this.reviveCooldown;
         this.time.addEvent({
@@ -263,12 +314,23 @@ export class WorldScene extends Phaser.Scene {
                 timeLeft--;
                 const mins = Math.floor(timeLeft / 60);
                 const secs = (timeLeft % 60).toString().padStart(2, '0');
-                worldDescription.setText(`You are dead.\n\nYou will respawn in:\n${mins}:${secs}`);
-                if (timeLeft <= 0) {
-                    EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
-                    worldCard.destroy();
-                    fx.destroy();
-                    this.input.mouse.startListeners();
+                if (this.showDeathScreenContainer){
+                    worldDescription.setText(`You are dead.\n\nYou will respawn in:\n${mins}:${secs}`);
+                }
+                if (timeLeft <= 0 && this.heroIsDead) {
+                    this.showDeathScreenContainer.destroy();
+                    this.cameraColorMatrixEffect.destroy();
+                    setTimeout(()=>{
+                        if(this.heroIsDead){
+                            this.reviveBtn.setOnClick(()=>{
+                                this.gameServices.playerService.revivePlayer();
+                            });
+                            this.reviveBtn.setPosition(
+                                this.cameras.main.centerX, 
+                                this.cameras.main.centerY + 200
+                            ).setVisible(true);
+                        }
+                    }, 1000);
                 }
             }
         });
@@ -279,7 +341,7 @@ export class WorldScene extends Phaser.Scene {
 
         const getPlayerLevel = () => usePlayerStore.getState().player?.playerLevel || 0;
         const setPlayerWorld = (worldId: number) => {
-            gameServices.playerService.enterWorld(worldId);
+            this.gameServices.playerService.enterWorld(worldId);
         };
 
         //Events World
@@ -299,7 +361,7 @@ export class WorldScene extends Phaser.Scene {
             this.leaveWorlClicked();
         });
         this.leaveWorldBtn.setOnClick(()=>{
-            gameServices.playerService.leaveWorld();
+            this.gameServices.playerService.leaveWorld();
         });
         this.moveInWorldBtn.setOnClick(()=>{
             if (!this.textures.exists(this.selectedWorldScene)){
@@ -307,7 +369,7 @@ export class WorldScene extends Phaser.Scene {
                 return;
             }
             this.activeHero.play("Walk");
-            gameServices.playerService.moveInWorld();
+            this.gameServices.playerService.moveInWorld();
         });
 
         //World Selection
