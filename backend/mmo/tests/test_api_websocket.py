@@ -793,13 +793,13 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('data', response)
         self.assertIsInstance(response['data'], list)
 
-        armour_inv = await PlayerInventory.objects.filter(
+        armour_inv = await PlayerInventory.objects.select_related('item').filter(
             player=self.player,
             item=self.item_armour
         ).afirst()
         self.assertIsNotNone(armour_inv)
         
-        potion_inv = await PlayerInventory.objects.filter(
+        potion_inv = await PlayerInventory.objects.select_related('item').filter(
             player=self.player,
             item=self.item_life_potion
         ).afirst()
@@ -809,7 +809,7 @@ class MMOConsumerTests(TransactionTestCase):
 
         await communicator.send_json_to({
             'action': ToServerActions.SALVAGE_ITEM,
-            'data': armour_inv.id
+            'data': armour_inv.item.id
         })
         response = await communicator.receive_json_from()
         self.assertEqual(response['action'], ToClientActions.EARNED_CURRENCY)
@@ -823,7 +823,7 @@ class MMOConsumerTests(TransactionTestCase):
 
         await communicator.send_json_to({
             'action': ToServerActions.SALVAGE_ITEM,
-            'data': potion_inv.id
+            'data': potion_inv.item.id
         })
         response = await communicator.receive_json_from()
         self.assertEqual(response['action'], ToClientActions.EARNED_CURRENCY)
@@ -848,7 +848,7 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('data', response)
         self.assertIsInstance(response['data'], list)
 
-        armour_inv = await PlayerInventory.objects.filter(
+        armour_inv = await PlayerInventory.objects.select_related('item').filter(
             player=self.player,
             item=self.item_armour
         ).afirst()
@@ -864,7 +864,7 @@ class MMOConsumerTests(TransactionTestCase):
 
         await communicator.send_json_to({
             'action': ToServerActions.SALVAGE_ITEM,
-            'data': armour_inv.id
+            'data': armour_inv.item.id
         })
         response = await communicator.receive_json_from()
         self.assertEqual(response['action'], ToClientActions.EARNED_CURRENCY)
@@ -891,7 +891,7 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertIn('data', response)
         self.assertIsInstance(response['data'], list)
 
-        armour_inv = await PlayerInventory.objects.filter(
+        armour_inv = await PlayerInventory.objects.select_related('item').filter(
             player=self.player,
             item=self.item_armour
         ).afirst()
@@ -905,7 +905,7 @@ class MMOConsumerTests(TransactionTestCase):
 
         await communicator.send_json_to({
             'action': ToServerActions.SALVAGE_ITEM,
-            'data': armour_inv.id
+            'data': armour_inv.item.id
         })
         self.assertTrue(await communicator.receive_nothing())
 

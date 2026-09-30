@@ -491,8 +491,8 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             logger.error("User %s is in a fight, cannot salvage item", self.user.id)
             return
 
-        inventory_id = data['data']
-        await sync_to_async(PlayerInventoryEngine.salvage_item)(self.player_id, self.user.id, inventory_id)
+        item_id = data['data']
+        await sync_to_async(PlayerInventoryEngine.salvage_item)(self.player_id, self.user.id, item_id)
 
     async def _get_inventory(self, data: dict) -> None:
         await self.send(json.dumps({

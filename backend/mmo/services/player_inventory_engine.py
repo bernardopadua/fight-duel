@@ -73,20 +73,20 @@ class PlayerInventoryEngine:
         return True
 
     @staticmethod
-    def salvage_item(player_id: int, user_id: int, inventory_id: int) -> None:
+    def salvage_item(player_id: int, user_id: int, item_id: int) -> None:
         with transaction.atomic():
             iv = PlayerInventory.objects.select_for_update(
                 of=['self'],
                 skip_locked=True
             ).filter(
-                id=inventory_id,
+                item_id=item_id,
                 player_id=player_id
             ).select_related(
                 'item',
                 'player'
             ).first()
             if not iv:
-                logger.warning("Inventory item %s not found for player %s", inventory_id, player_id)
+                logger.warning("Inventory item_id %s not found for player %s", item_id, player_id)
                 return
 
             item: Item = iv.item
