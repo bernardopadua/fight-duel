@@ -247,6 +247,10 @@ export class FightScene extends Phaser.Scene {
 
         const onFightDropItems = (data: WebSocketFightDropItems['data']) => {
             useDropStore.getState().setItems(data);
+            useUIStore.getState().setInitialPosition(
+                'dropItems',
+                {x: window.innerWidth/2 - 150, y: window.innerHeight/2 - 150}
+            );
             useUIStore.getState().open('dropItems');
         };
 

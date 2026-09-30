@@ -1,5 +1,11 @@
 import { motion } from "framer-motion";
 
+interface InitialState {
+    x: number;
+    y: number;
+    width: number;
+}
+
 export function WindowRPG(
     { 
         children,
@@ -8,6 +14,7 @@ export function WindowRPG(
         rightSide,
         parentContainerRef,
         initialPosition,
+        initialSize,
         onClose
     }: 
     { 
@@ -17,10 +24,11 @@ export function WindowRPG(
         rightSide: React.ReactNode,
         parentContainerRef: React.RefObject<HTMLDivElement>,
         initialPosition?: {x: number, y: number},
+        initialSize?: {width: number},
         onClose?: () => void
      }
 ){
-    const initial = initialPosition ? initialPosition : {x: 0, y: 0};
+    const initial = {x: 0, y: 0, width: 240, ...initialPosition, ...initialSize};
 
     return (
         <motion.div drag dragMomentum={false} dragElastic={0}
@@ -28,7 +36,7 @@ export function WindowRPG(
             onPointerDown={(e)=>{ e.stopPropagation(); }}
             onMouseDown={(e)=>{ e.stopPropagation(); }}
             initial={initial}
-            className="relative w-60 rounded border-2 border-amber-700/80 
+            className="relative rounded border-2 border-amber-700/80 
                 scale-65 sm:scale-90 md:scale-100
                 bg-gradient-to-b from-stone-900/95 via-neutral-950/95 to-black/95 
                 p-4 text-stone-200 backdrop-blur-md ring-1 ring-amber-500/30"

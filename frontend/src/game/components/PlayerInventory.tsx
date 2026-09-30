@@ -89,16 +89,20 @@ export function PlayerInventory() {
                     ) : (
                         nonConsumables.map((item) => {
                             const isSelected = selectedItem?.id === item.id;
+                            const isEquipped = item.id === player.playerEquippedWeaponItem?.id || item.id === player.playerEquippedArmourItem?.id;
+
                             return (
                                 <button
                                     key={item.id}
                                     type="button"
-                                    title={`${item.itemName} | Power: ${item.itemPower}`}
+                                    title={`${item.itemName} | Power: ${item.itemPower}${isEquipped ? ' (Equipped)' : ''}`}
                                     onClick={() => handleSelect(item)}
                                     className={`relative w-11 h-11 flex items-center justify-center rounded cursor-pointer transition-all p-1
                                         ${isSelected 
                                             ? 'border border-amber-300 bg-amber-900/60 ring-2 ring-amber-400/90 shadow-[0_0_8px_#f59e0b]' 
-                                            : 'border border-stone-700/80 bg-stone-900/80 hover:border-amber-500/60 hover:bg-stone-800'
+                                            : isEquipped
+                                                ? 'border border-emerald-500/80 bg-emerald-950/40 hover:border-emerald-400'
+                                                : 'border border-stone-700/80 bg-stone-900/80 hover:border-amber-500/60 hover:bg-stone-800'
                                         }`}
                                 >
                                     <img
@@ -106,6 +110,11 @@ export function PlayerInventory() {
                                         alt={item.itemName}
                                         className="w-full h-full object-contain [image-rendering:pixelated] select-none pointer-events-none"
                                     />
+                                    {isEquipped && (
+                                        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] font-black text-black ring-1 ring-black shadow">
+                                            E
+                                        </span>
+                                    )}
                                 </button>
                             );
                         })

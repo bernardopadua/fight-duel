@@ -68,6 +68,7 @@ export default function GameLayout() {
                     icon='📦' 
                     rightSide={null}
                     parentContainerRef={containerRef}
+                    initialSize={{width: 300}}
                     initialPosition={windows.dropItems.initialPosition}
                 >
                     <DropItems />
