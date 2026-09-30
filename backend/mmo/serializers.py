@@ -79,6 +79,7 @@ class GetPlayerSerializer(ModelSerializer):
         if obj.player_equipped_weapon is None:
             return None
         return {
+            "id": obj.player_equipped_weapon.item.id,
             "item_name": obj.player_equipped_weapon.item.item_name,
             "item_power": obj.player_equipped_weapon.item.item_power,
             "item_weight": obj.player_equipped_weapon.item.item_weight
@@ -88,6 +89,7 @@ class GetPlayerSerializer(ModelSerializer):
         if obj.player_equipped_armour is None:
             return None
         return {
+            "id": obj.player_equipped_armour.item.id,
             "item_name": obj.player_equipped_armour.item.item_name,
             "item_power": obj.player_equipped_armour.item.item_power,
             "item_weight": obj.player_equipped_armour.item.item_weight
