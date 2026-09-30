@@ -4,6 +4,7 @@ PLAYER_TOTAL_STAMINA=100
 PLAYER_BASE_STAMINA_USAGE=1
 PLAYER_STAMINA_LINEAR_POWER=1.8 #how stamina grows based on power points
 PLAYER_STAMINA_TOTAL_POWER_REGEN=0.4 #percent stamina regens at each tick
+PLAYER_INITIAL_REVIVE_LIFE=1
 PLAYER_BASE_LIFE=100
 PLAYER_LIFE_LINEAR_POWER=1.5 #how life grows based on power points
 PLAYER_LIFE_TOTAL_POWER_REGEN=0.1 #percent life regens at each tick
