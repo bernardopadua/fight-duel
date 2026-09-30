@@ -18,7 +18,8 @@ from mmo.services.constants import (
     LEVELUP_PLUS_PLAYERPOWER, LEVEL_MAX,
     PLAYER_BASE_STAMINA_USAGE, STAMINA_USAGE_WEIGHT_VARIATION,
     STAMINA_USAGE_POWER_VARIATION, PLAYER_STAMINA_LINEAR_POWER,
-    PLAYER_STAMINA_TOTAL_POWER_REGEN, PLAYER_TIME_DEATH_COOLDOWN
+    PLAYER_STAMINA_TOTAL_POWER_REGEN, PLAYER_TIME_DEATH_COOLDOWN,
+    PLAYER_INITIAL_REVIVE_LIFE
 )
 from mmo.constants import (
     USER_CHANNEL_WS_LOGGED,
@@ -255,6 +256,7 @@ class PlayerEngine:
             logger.warning('Player not found')
             return
 
+        player.player_life = PLAYER_INITIAL_REVIVE_LIFE
         player.player_status = Player.PlayerStatus.IDLE
         player.player_last_death_date = None
         player.save(update_fields=['player_status', 'player_last_death_date'])
