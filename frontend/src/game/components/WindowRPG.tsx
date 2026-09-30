@@ -1,11 +1,5 @@
 import { motion } from "framer-motion";
 
-interface InitialState {
-    x: number;
-    y: number;
-    width: number;
-}
-
 export function WindowRPG(
     { 
         children,
@@ -29,12 +23,18 @@ export function WindowRPG(
      }
 ){
     const initial = {x: 0, y: 0, width: 240, ...initialPosition, ...initialSize};
+    const stopProp = (e: React.SyntheticEvent) => {
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+    };
 
     return (
         <motion.div drag dragMomentum={false} dragElastic={0}
             dragConstraints={parentContainerRef}
-            onPointerDown={(e)=>{ e.stopPropagation(); }}
-            onMouseDown={(e)=>{ e.stopPropagation(); }}
+            onPointerUp={stopProp}
+            onPointerDown={stopProp}
+            onMouseUp={stopProp}
+            onMouseDown={stopProp}
             initial={initial}
             className="relative rounded border-2 border-amber-700/80 
                 scale-65 sm:scale-90 md:scale-100

@@ -50,6 +50,7 @@ export class FightScene extends Phaser.Scene {
     // UI
     private btnAttack: ImageButton;
     private btnFlee: ImageButton;
+    private btnLeave: ImageButton;
 
     constructor() {
         super({ key: "FightScene" });
@@ -79,7 +80,21 @@ export class FightScene extends Phaser.Scene {
             '',
             {width: 200, height: 50}
         ).setVisible(false).setDepth(2);
-
+        this.btnLeave = new ImageButton(
+            this,
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 200, 
+            'btn-world-ui',
+            'btn-world-ui-disabled',
+            'Leave',
+            {
+                width: 300, height: 67,
+                textStyle: {
+                    fontFamily: 'Georgia',
+                    fontSize: '18px'
+                }
+            }
+        ).setVisible(false).setDepth(2);
     }
     async processEventEqueue(){
         if (this.isProcessing) return;
@@ -187,7 +202,9 @@ export class FightScene extends Phaser.Scene {
                                 onComplete: () => {
                                     this.activePlayer.setFlipX(false);
                                     this.activePlayer.play({key: 'Idle', repeat: -1});
-                                    this.activeCreature.play({key: 'Idle', repeat: -1});
+                                    if (this.lifeCreatureStatus.getValue() > 0){
+                                        this.activeCreature.play({key: 'Idle', repeat: -1});
+                                    }
                                     resolve();
                                 }
                             });
@@ -228,7 +245,30 @@ export class FightScene extends Phaser.Scene {
                 });
                 this.eventEqueue.push(playerIsDead);
             } else if(data.isPlayerAlive && !data.isMonsterAlive) {
-                this.activeCreature.play({key: 'Death'});
+                const playerWin = () => new Promise<void>((resolve) => {
+                    //Assuring no tweens is running
+                    const activeCreatureTweens = this.tweens.getTweensOf(this.activeCreature);
+                    if (activeCreatureTweens.length > 0){
+                        activeCreatureTweens[activeCreatureTweens.length -1].once('complete', () => {
+                            this.activeCreature.play({key: 'Death'});
+                            this.activeCreature.once('animationcomplete-Death', ()=>{
+                                this.btnAttack.setVisible(false);
+                                this.btnFlee.setVisible(false);
+                                this.btnLeave.setVisible(true);
+                                resolve();
+                            });
+                        });
+                    } else {
+                        this.activeCreature.play({key: 'Death'});
+                        this.activeCreature.once('animationcomplete-Death', ()=>{
+                            this.btnAttack.setVisible(false);
+                            this.btnFlee.setVisible(false);
+                            this.btnLeave.setVisible(true);
+                            resolve();
+                        });
+                    }
+                });                
+                this.eventEqueue.push(playerWin);
             } else if(data.isPlayerAlive && data.isMonsterAlive){
                 this.activePlayer.setFlipX(true);
                 this.activePlayer.play({key: 'Walk', repeat: -1});
@@ -334,6 +374,20 @@ export class FightScene extends Phaser.Scene {
         this.btnFlee.setOnClick(()=>{
             gameServices.fightService.flee();
         });
+        this.btnLeave.setOnClick(()=>{
+            this.activePlayer.setFlipX(true);
+            this.activePlayer.play({key: 'Walk', repeat: -1});
+            this.tweens.add({
+                targets: this.activePlayer,
+                x: -250,
+                ease: 'Power1',
+                duration: 350,
+                onComplete: () => {
+                    this.scene.wake('WorldScene');
+                    this.scene.stop();
+                }
+            });
+        });
 
         //Tweens
         this.activePlayer.play({ key: 'Walk', repeat: -1 });
@@ -345,10 +399,6 @@ export class FightScene extends Phaser.Scene {
             onComplete: () => {
                 this.activePlayer.play({ key: 'Idle', repeat: -1 });
             }
-        });
-
-        this.input.keyboard?.once('keydown-SPACE', ()=>{
-            this.scene.start('WorldScene');
         });
     }
     

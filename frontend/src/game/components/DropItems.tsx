@@ -3,9 +3,14 @@ import { useState } from 'react';
 //TYPES
 import type { DropItem } from '@/game/store/drop-store';
 
+//CONTEXT
+import { useGameContext } from '@/game/game-context';
+
 //STORE
 import { useDropStore } from '@/game/store/drop-store';
 import { useUIStore } from '@/game/store/ui-store';
+import { usePlayerStore } from '@/game/store/player-store';
+import { usePlayerInventoryStore } from '@/game/store/player-inventory-store';
 
 function getItemSprite(item: DropItem): string {
     const type = item.itemType?.toLowerCase();
@@ -23,6 +28,10 @@ function getItemSprite(item: DropItem): string {
 
 export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => void}) {
     const items = useDropStore((s) => s.items);
+    const setDropItems = useDropStore((s) => s.setItems);
+    const player = usePlayerStore((s) => s.player);
+    const itemsInventory = usePlayerInventoryStore((s) => s.items);
+    const { playerService } = useGameContext();
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
     const toggleItem = (id: number) => {
@@ -41,7 +50,23 @@ export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => 
 
     const handleLoot = () => {
         const selectedItems = items.filter((item) => selectedIds.includes(item.id));
-        //onLoot?.(selectedItems);
+        const totalWeight = selectedItems.reduce((acc, item) => acc + (item.itemWeight ?? 0), 0);
+        const totalInventoryWeight = itemsInventory.reduce((acc, item) => acc + (item.itemWeight ?? 0), 0);
+        const totalCarrying = player.playerMaxWeight - totalInventoryWeight;
+
+        if(totalWeight > totalCarrying){
+            alert('Too much weight. Empty some items from your inventory.');
+            return;
+        };
+        playerService.lootItems(selectedItems);
+
+        if (selectedItems.length == items.length){
+            setDropItems([]);
+            useUIStore.getState().close('dropItems');
+        } else if (selectedItems.length < items.length){
+            setDropItems(items.filter((item) => !selectedIds.includes(item.id)));
+        };
+        setSelectedIds([]);
     };
 
     const handleDiscard = () => {
