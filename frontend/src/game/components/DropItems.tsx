@@ -1,7 +1,4 @@
-import { useState } from 'react';
-
-//TYPES
-import type { DropItem } from '@/game/store/drop-store';
+import { useState, useEffect } from 'react';
 
 //CONTEXT
 import { useGameContext } from '@/game/game-context';
@@ -11,28 +8,28 @@ import { useDropStore } from '@/game/store/drop-store';
 import { useUIStore } from '@/game/store/ui-store';
 import { usePlayerStore } from '@/game/store/player-store';
 import { usePlayerInventoryStore } from '@/game/store/player-inventory-store';
+import { useTooltipStore } from '@/game/store/tooltip-store';
 
-function getItemSprite(item: DropItem): string {
-    const type = item.itemType?.toLowerCase();
-    if (type === 'consumable' && item.itemConsumableType) {
-        return `/sprites/items/${item.itemConsumableType.toLowerCase()}.png`;
-    }
-    if (type === 'armour' || type === 'armor') {
-        return '/sprites/items/armour.png';
-    }
-    if (type === 'weapon') {
-        return '/sprites/items/weapon.png';
-    }
-    return `/sprites/items/${type || 'weapon'}.png`;
-}
+// UTILS
+import { getItemSprite } from '@/game/utils/item-utils';
 
-export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => void}) {
+export function DropItems() {
     const items = useDropStore((s) => s.items);
     const setDropItems = useDropStore((s) => s.setItems);
     const player = usePlayerStore((s) => s.player);
     const itemsInventory = usePlayerInventoryStore((s) => s.items);
     const { playerService } = useGameContext();
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+    const showTooltip = useTooltipStore((s) => s.showTooltip);
+    const updateCoords = useTooltipStore((s) => s.updateCoords);
+    const hideTooltip = useTooltipStore((s) => s.hideTooltip);
+
+    useEffect(() => {
+        return () => {
+            hideTooltip();
+        };
+    }, [hideTooltip]);
 
     const toggleItem = (id: number) => {
         setSelectedIds((prev) =>
@@ -59,6 +56,7 @@ export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => 
             return;
         };
         playerService.lootItems(selectedItems);
+        hideTooltip();
 
         if (selectedItems.length == items.length){
             setDropItems([]);
@@ -70,6 +68,7 @@ export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => 
     };
 
     const handleDiscard = () => {
+        hideTooltip();
         useDropStore.getState().setItems([]);
         setSelectedIds([]);
         useUIStore.getState().close('dropItems');
@@ -102,8 +101,14 @@ export function DropItems({ onLoot } : {onLoot?: (selectedItems: DropItem[]) => 
                             <button
                                 key={item.id}
                                 type="button"
-                                title={`${item.itemName} | Power: ${item.itemPower ?? 0} | Weight: ${item.itemWeight ?? 0}`}
                                 onClick={() => toggleItem(item.id)}
+                                onMouseEnter={(e) =>
+                                    showTooltip(item, { x: e.clientX, y: e.clientY }, {
+                                        hint: isSelected ? 'Click to deselect' : 'Click to select for loot'
+                                    })
+                                }
+                                onMouseMove={(e) => updateCoords({ x: e.clientX, y: e.clientY })}
+                                onMouseLeave={() => hideTooltip()}
                                 className={`w-16 h-16 flex items-center justify-center rounded cursor-pointer transition-all p-0.5
                                     ${isSelected 
                                         ? 'border border-amber-300 bg-amber-900/60 ring-2 ring-amber-400/90 shadow-[0_0_8px_#f59e0b]' 

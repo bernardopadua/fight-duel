@@ -1,5 +1,5 @@
 //REACT
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 //SERVICES
 import { useGameContext } from '@/game/game-context';
@@ -7,23 +7,13 @@ import { useGameContext } from '@/game/game-context';
 //STORE
 import { usePlayerStore } from '@/game/store/player-store';
 import { usePlayerInventoryStore, type PlayerInventoryItem } from '@/game/store/player-inventory-store';
+import { useTooltipStore } from '@/game/store/tooltip-store';
 
 //TYPES
 import { ITEM_TYPE } from '@/game/types';
 
-function getItemSprite(item: PlayerInventoryItem): string {
-    const type = item.itemType?.toLowerCase();
-    if (type === 'consumable' && item.itemConsumableType) {
-        return `/sprites/items/${item.itemConsumableType.toLowerCase()}.png`;
-    }
-    if (type === 'armour' || type === 'armor') {
-        return '/sprites/items/armour.png';
-    }
-    if (type === 'weapon') {
-        return '/sprites/items/weapon.png';
-    }
-    return `/sprites/items/${type || 'weapon'}.png`;
-}
+//UTILS
+import { getItemSprite } from '@/game/utils/item-utils';
 
 export function PlayerInventory() {
     const player = usePlayerStore((s) => s.player);
@@ -32,6 +22,16 @@ export function PlayerInventory() {
     const { playerInventoryService } = useGameContext();
 
     const [selectedItem, setSelectedItem] = useState<PlayerInventoryItem | null>(null);
+
+    const showTooltip = useTooltipStore((s) => s.showTooltip);
+    const updateCoords = useTooltipStore((s) => s.updateCoords);
+    const hideTooltip = useTooltipStore((s) => s.hideTooltip);
+
+    useEffect(() => {
+        return () => {
+            hideTooltip();
+        };
+    }, [hideTooltip]);
 
     const consumables = items.filter((i) => i.itemType?.toLowerCase() === 'consumable');
     const nonConsumables = items.filter((i) => i.itemType?.toLowerCase() !== 'consumable');
@@ -46,18 +46,21 @@ export function PlayerInventory() {
 
     const handleUseItem = () => {
         if (!selectedItem) return;
+        hideTooltip();
         playerInventoryService.useItem(selectedItem);
         setSelectedItem(null);
     };
 
     const handleEquipItem = () => {
         if (!selectedItem) return;
+        hideTooltip();
         playerInventoryService.equipItem(selectedItem);
         setSelectedItem(null);
     };
 
     const handleSalvageItem = () => {
         if (!selectedItem) return;
+        hideTooltip();
         playerInventoryService.salvageItem(selectedItem);
         setSelectedItem(null);
     };
@@ -95,8 +98,15 @@ export function PlayerInventory() {
                                 <button
                                     key={item.id}
                                     type="button"
-                                    title={`${item.itemName} | Power: ${item.itemPower}${isEquipped ? ' (Equipped)' : ''}`}
                                     onClick={() => handleSelect(item)}
+                                    onMouseEnter={(e) =>
+                                        showTooltip(item, { x: e.clientX, y: e.clientY }, {
+                                            isEquipped,
+                                            hint: isEquipped ? 'Equipped item' : 'Click to select / equip'
+                                        })
+                                    }
+                                    onMouseMove={(e) => updateCoords({ x: e.clientX, y: e.clientY })}
+                                    onMouseLeave={() => hideTooltip()}
                                     className={`relative w-11 h-11 flex items-center justify-center rounded cursor-pointer transition-all p-1
                                         ${isSelected 
                                             ? 'border border-amber-300 bg-amber-900/60 ring-2 ring-amber-400/90 shadow-[0_0_8px_#f59e0b]' 
@@ -136,8 +146,14 @@ export function PlayerInventory() {
                                 <button
                                     key={item.id}
                                     type="button"
-                                    title={`${item.itemName} | Recovery: +${item.itemPower}`}
                                     onClick={() => handleSelect(item)}
+                                    onMouseEnter={(e) =>
+                                        showTooltip(item, { x: e.clientX, y: e.clientY }, {
+                                            hint: 'Click to select / use'
+                                        })
+                                    }
+                                    onMouseMove={(e) => updateCoords({ x: e.clientX, y: e.clientY })}
+                                    onMouseLeave={() => hideTooltip()}
                                     className={`relative w-11 h-11 flex items-center justify-center rounded cursor-pointer transition-all p-1
                                         ${isSelected 
                                             ? 'border border-amber-300 bg-amber-900/60 ring-2 ring-amber-400/90 shadow-[0_0_8px_#f59e0b]' 

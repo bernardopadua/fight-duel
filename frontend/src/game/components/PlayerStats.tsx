@@ -1,7 +1,20 @@
+import { useEffect } from 'react';
 import { usePlayerStore } from '@/game/store/player-store';
+import { useTooltipStore } from '@/game/store/tooltip-store';
+import { ITEM_TYPE } from '@/game/types';
+import type { Item } from '@/game/store/store-types';
 
 export function PlayerStats() {
     const player = usePlayerStore((s) => s.player);
+    const showTooltip = useTooltipStore((s) => s.showTooltip);
+    const updateCoords = useTooltipStore((s) => s.updateCoords);
+    const hideTooltip = useTooltipStore((s) => s.hideTooltip);
+
+    useEffect(() => {
+        return () => {
+            hideTooltip();
+        };
+    }, [hideTooltip]);
 
     if (!player) {
         return (
@@ -58,10 +71,23 @@ export function PlayerStats() {
                         {/* Weapon Slot */}
                         <div className="flex flex-col items-center gap-1">
                             <div 
-                                title={weapon ? `${weapon.itemName} (Power: ${weapon.itemPower})` : 'No weapon equipped'}
+                                onMouseEnter={(e) => {
+                                    if (weapon) {
+                                        const item: Item = {
+                                            ...weapon,
+                                            itemType: (weapon as any).itemType || ITEM_TYPE.WEAPON,
+                                            itemConsumableType: null,
+                                        };
+                                        showTooltip(item, { x: e.clientX, y: e.clientY }, { isEquipped: true });
+                                    }
+                                }}
+                                onMouseMove={(e) => {
+                                    if (weapon) updateCoords({ x: e.clientX, y: e.clientY });
+                                }}
+                                onMouseLeave={() => hideTooltip()}
                                 className={`w-11 h-11 flex items-center justify-center rounded p-1 transition-all
                                     ${weapon 
-                                        ? 'border border-amber-500/80 bg-stone-900/90 shadow-[0_0_6px_rgba(245,158,11,0.2)]' 
+                                        ? 'border border-amber-500/80 bg-stone-900/90 shadow-[0_0_6px_rgba(245,158,11,0.2)] cursor-pointer' 
                                         : 'border border-dashed border-stone-700/80 bg-stone-950/60'
                                     }`}
                             >
@@ -83,10 +109,23 @@ export function PlayerStats() {
                         {/* Armour Slot */}
                         <div className="flex flex-col items-center gap-1">
                             <div 
-                                title={armour ? `${armour.itemName} (Power: ${armour.itemPower})` : 'No armour equipped'}
+                                onMouseEnter={(e) => {
+                                    if (armour) {
+                                        const item: Item = {
+                                            ...armour,
+                                            itemType: (armour as any).itemType || ITEM_TYPE.ARMOUR,
+                                            itemConsumableType: null,
+                                        };
+                                        showTooltip(item, { x: e.clientX, y: e.clientY }, { isEquipped: true });
+                                    }
+                                }}
+                                onMouseMove={(e) => {
+                                    if (armour) updateCoords({ x: e.clientX, y: e.clientY });
+                                }}
+                                onMouseLeave={() => hideTooltip()}
                                 className={`w-11 h-11 flex items-center justify-center rounded p-1 transition-all
                                     ${armour 
-                                        ? 'border border-amber-500/80 bg-stone-900/90 shadow-[0_0_6px_rgba(245,158,11,0.2)]' 
+                                        ? 'border border-amber-500/80 bg-stone-900/90 shadow-[0_0_6px_rgba(245,158,11,0.2)] cursor-pointer' 
                                         : 'border border-dashed border-stone-700/80 bg-stone-950/60'
                                     }`}
                             >

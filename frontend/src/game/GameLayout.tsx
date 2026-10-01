@@ -19,6 +19,7 @@ import { PlayerDetails, PlayerDetailsRightSide } from '@/game/components/PlayerD
 import { DropItems } from '@/game/components/DropItems';
 import { PlayerInventory } from '@/game/components/PlayerInventory';
 import { PlayerStats } from '@/game/components/PlayerStats';
+import { ItemTooltipWindow } from '@/game/components/ItemTooltipWindow';
 
 export default function GameLayout() {
     const auth = useAuth();
@@ -86,6 +87,8 @@ export default function GameLayout() {
                     <PlayerInventory />
                 </WindowRPG>
             )}
+
+            <ItemTooltipWindow />
         </div>
     );
 }

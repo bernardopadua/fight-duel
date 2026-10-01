@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 //STORE
 import { usePlayerStore } from '@/game/store/player-store';
-import { useDropStore } from '@/game/store/drop-store';
 import { useUIStore } from '@/game/store/ui-store';
 
 export function PlayerDetailsRightSide(){
@@ -37,10 +36,10 @@ export function PlayerDetails(){
                             <span className="text-base animate-pulse">💀</span>
                             <div className="flex flex-col">
                                 <span className="text-xs font-bold uppercase tracking-wider text-red-400">
-                                    Morto
+                                    Dead
                                 </span>
                                 <span className="text-[10px] text-red-300/80">
-                                    {timeLeft !== undefined && timeLeft > 0 ? 'Revivendo em breve...' : 'Aguardando renascimento'}
+                                    {timeLeft !== undefined && timeLeft > 0 ? 'Reviving soon...' : 'Waiting for revival'}
                                 </span>
                             </div>
                         </div>
