@@ -341,7 +341,7 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
             "data": data
         }))
 
-    async def player_earned_currency(self, event: dict) -> None:
+    async def player_refresh_inventory(self, event: dict) -> None:
         if not 'data' in event:
             logger.error('No data for player %s earned currency', self.user.id)
             return
@@ -353,6 +353,11 @@ class FightDuelConsumer(AsyncWebsocketConsumer):
         await self.send(json.dumps({
             "action": ToClientActions.EARNED_CURRENCY,
             "data": data
+        }))
+
+        await self.send(json.dumps({
+            "action": ToClientActions.INVENTORY_UPDATE,
+            "data": await sync_to_async(PlayerInventoryEngine.get_player_inventory)(self.player_id)
         }))
 
     # ACTIONS
