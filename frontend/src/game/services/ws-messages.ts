@@ -116,7 +116,16 @@ export interface WebSocketInventoryUpdateMessage extends WebSocketMessage {
     }[]
 };
 
-export type InventoryMessage = WebSocketInventoryUpdateMessage;
+export interface WebSocketEarnedCurrencyMessage extends WebSocketMessage {
+    action: "earned.currency";
+    data: {
+        currency: number;
+    }
+}
+
+export type InventoryMessage = 
+    | WebSocketInventoryUpdateMessage
+    | WebSocketEarnedCurrencyMessage;
 
 export type AnyMessage = 
     | RecoverStatusMessage

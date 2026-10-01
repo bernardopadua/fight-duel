@@ -7,7 +7,8 @@ import type { WebSocketService } from "@/game/services/ws-service";
 
 // WSocket MESSAGE
 import type { 
-    WebSocketInventoryUpdateMessage
+    WebSocketInventoryUpdateMessage,
+    WebSocketEarnedCurrencyMessage
  } from '@/game/services/ws-messages';
 
 //INVENTORY ITEM
@@ -26,11 +27,15 @@ export interface PlayerInventoryService {
 export function createPlayerInventoryService(ws: WebSocketService): PlayerInventoryService {
     const respInventoryUpdate = (message: WebSocketInventoryUpdateMessage) => {
         usePlayerInventoryStore.getState().setInventoryItems(message.data);
-        
+        EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
+    };
+    const respEarnedCurrency = (message: WebSocketEarnedCurrencyMessage) => {
+        usePlayerStore.getState().setCurrency(message.data.currency);
         EventBus.emit(GAME_EVENTS.UPDATE_PLAYER);
     };
 
     ws.subscribe('inventory.update', respInventoryUpdate);
+    ws.subscribe('earned.currency', respEarnedCurrency);
 
     return {
         getInventory: () => {

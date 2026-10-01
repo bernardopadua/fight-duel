@@ -42,11 +42,6 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
         usePlayerStore.getState().setPlayerWorld(null);
         EventBus.emit(GAME_EVENTS.LEAVE_WORLD);
     };
-    const respInventoryUpdate = (message: WebSocketInventoryUpdateMessage) => {
-        usePlayerInventoryStore.getState().setInventoryItems(message.data);
-        const totalInventoryWeight = message.data.reduce((acc, item) => acc + item.itemWeight, 0);
-        usePlayerStore.getState().setTotalInventoryWeight(totalInventoryWeight);
-    };
     const respRevivePlayer = (_: WebSocketPlayerReviveMessage) => {
         EventBus.emit(GAME_EVENTS.PLAYER_REVIVE);
     };
@@ -56,7 +51,6 @@ export function createPlayerService(ws: WebSocketService): PlayerService {
 
     ws.subscribe('world.enter', respEnterWorld);
     ws.subscribe('world.leave', respLeaveWorld);
-    ws.subscribe('inventory.update', respInventoryUpdate);
     ws.subscribe('player.revive.cooldown', respPlayerReviveCooldown);
     ws.subscribe('player.revive', respRevivePlayer);
 
