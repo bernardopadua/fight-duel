@@ -83,30 +83,6 @@ export function PlayerDetails(){
                     🎒 Player Inventory
                 </button>
                 
-                <button 
-                    type="button"
-                    onClick={() => {
-                        useDropStore.getState().setItems([
-                            {
-                                id: 5,
-                                itemName: 'Potion',
-                                itemType: 'consumable',
-                                itemConsumableType: 'life',
-                                itemPower: 100,
-                                itemWeight: 1
-                            }
-                        ]);
-                        useUIStore.getState().setInitialPosition(
-                            'dropItems',
-                            {x: window.innerWidth/2 - 150, y: window.innerHeight/2 - 150}
-                        );
-                        open('dropItems');
-                    }}
-                    className="w-full mt-2 rounded border border-amber-500/80 bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 py-1.5 text-xs font-bold tracking-wider text-amber-100 uppercase shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all hover:brightness-110 active:translate-y-0.5"
-                >
-                    📦 Drop Items (testing...)
-                </button>
-                
             </div>
         </div>
     );
