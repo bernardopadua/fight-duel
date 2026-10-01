@@ -44,7 +44,7 @@ export default function Login(
             if(err instanceof Error){
                 console.error(err.message);
             }
-            setError("Usuário ou senha inválidos");
+            setError("Invalid username or password");
         }
     };
 

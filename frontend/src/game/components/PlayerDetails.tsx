@@ -54,12 +54,12 @@ export function PlayerDetails(){
                 )}
 
                 <div className="flex justify-between items-center rounded bg-stone-900/60 px-2.5 py-1.5 border border-stone-800">
-                    <span className="text-xs text-stone-400 font-medium">Nome</span>
+                    <span className="text-xs text-stone-400 font-medium">Name</span>
                     <span className="font-semibold text-amber-100">{player.playerName}</span>
                 </div>
 
                 <div className="flex justify-between items-center rounded bg-stone-900/60 px-2.5 py-1.5 border border-stone-800">
-                    <span className="text-xs text-stone-400 font-medium">Ouro</span>
+                    <span className="text-xs text-stone-400 font-medium">Gold</span>
                     <div className="flex items-center gap-1 font-bold text-yellow-400">
                     <span>🪙</span>
                     <span>{player.playerCurrency.toLocaleString()}</span>

@@ -23,7 +23,7 @@ export default function Register({ goPlayerCreation } : { goPlayerCreation: () =
             if(err instanceof Error){
                 console.error(err.message);
             }
-            setError("Erro ao registrar");
+            setError("Error registering");
         }
     };
 
