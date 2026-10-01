@@ -125,7 +125,7 @@ class PlayerInventoryEngine:
                     return
 
                 async_to_sync(cl.send)(channel_user, {
-                    'type': 'player.earned.currency',
+                    'type': 'player.refresh.inventory',
                     'data': {
                         'currency': currency
                     }

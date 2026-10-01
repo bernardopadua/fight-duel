@@ -821,6 +821,12 @@ class MMOConsumerTests(TransactionTestCase):
         self.assertEqual(self.player.player_currency, last_currency + response['data']['currency'])
         last_currency = self.player.player_currency
 
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        self.assertNotIn(armour_inv.item.id, response['data'])
+
         await communicator.send_json_to({
             'action': ToServerActions.SALVAGE_ITEM,
             'data': potion_inv.item.id
@@ -833,6 +839,12 @@ class MMOConsumerTests(TransactionTestCase):
 
         await self.player.arefresh_from_db()
         self.assertEqual(self.player.player_currency, last_currency + response['data']['currency'])
+        
+        response = await communicator.receive_json_from()
+        self.assertEqual(response['action'], ToClientActions.INVENTORY_UPDATE)
+        self.assertIn('data', response)
+        self.assertIsInstance(response['data'], list)
+        self.assertNotIn(potion_inv.item.id, response['data'])
 
         await communicator.disconnect()
 
