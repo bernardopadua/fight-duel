@@ -7,7 +7,7 @@ interface ButtonConfig {
 }
 export class ImageButton extends Phaser.GameObjects.Container {
     private background: Phaser.GameObjects.Image;
-    private label: Phaser.GameObjects.Text;
+    private label?: Phaser.GameObjects.Text;
 
     private buttonTexture: string;
     private buttonTextureDisabled: string;
@@ -70,19 +70,19 @@ export class ImageButton extends Phaser.GameObjects.Container {
     }
 
     public setText(newText: string) {
-        this.label.setText(newText);
+        this.label?.setText(newText);
         return this;
     }
 
     public setDisabled(){
-        this.label.setColor('#3d0000ff');
+        this.label?.setColor('#3d0000ff');
         this.background.setTexture(this.buttonTextureDisabled);
         this.isDisabled = true;
         return this;
     }
 
     public setEnabled(){
-        this.label.setColor('#ffffff');
+        this.label?.setColor('#ffffff');
         this.background.setTexture(this.buttonTexture);
         this.isDisabled = false;
         return this;

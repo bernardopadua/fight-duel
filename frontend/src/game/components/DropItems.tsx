@@ -13,6 +13,9 @@ import { useTooltipStore } from '@/game/store/tooltip-store';
 // UTILS
 import { getItemSprite } from '@/game/utils/item-utils';
 
+//LOGGER
+import logger from '@/game/logger';
+
 export function DropItems() {
     const items = useDropStore((s) => s.items);
     const setDropItems = useDropStore((s) => s.setItems);
@@ -46,10 +49,15 @@ export function DropItems() {
     };
 
     const handleLoot = () => {
+        if (!player) { 
+            logger.error('Player not found');
+            return; 
+        }
+        
         const selectedItems = items.filter((item) => selectedIds.includes(item.id));
         const totalWeight = selectedItems.reduce((acc, item) => acc + (item.itemWeight ?? 0), 0);
         const totalInventoryWeight = itemsInventory.reduce((acc, item) => acc + (item.itemWeight ?? 0), 0);
-        const totalCarrying = player.playerMaxWeight - totalInventoryWeight;
+        const totalCarrying = player?.playerMaxWeight - totalInventoryWeight;
 
         if(totalWeight > totalCarrying){
             alert('Too much weight. Empty some items from your inventory.');

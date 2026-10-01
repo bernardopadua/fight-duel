@@ -3,6 +3,8 @@
 .env.docker
 
 frontend/.env
+frontend/dist
+
 backend/.venv
 backend/.data
 backend/.redis

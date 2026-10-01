@@ -16,7 +16,7 @@ export function WindowRPG(
         title: string,
         icon: string,
         rightSide: React.ReactNode,
-        parentContainerRef: React.RefObject<HTMLDivElement>,
+        parentContainerRef: React.RefObject<HTMLDivElement | null>,
         initialPosition?: {x: number, y: number},
         initialSize?: {width: number},
         onClose?: () => void

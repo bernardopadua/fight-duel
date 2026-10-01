@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect } from 'react';
 
 //CONTEXT
 import { useGameContext } from '@/game/game-context';

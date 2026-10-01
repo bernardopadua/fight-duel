@@ -37,7 +37,7 @@ export function PlayerInventory() {
     const nonConsumables = items.filter((i) => i.itemType?.toLowerCase() !== 'consumable');
 
     const totalWeight = items.reduce((acc, item) => acc + (item.itemWeight || 0), 0);
-    const maxWeight = player.playerMaxWeight;
+    const maxWeight = player?.playerMaxWeight ?? 0;
     const isOverweight = maxWeight > 0 && totalWeight >= maxWeight;
 
     const handleSelect = (item: PlayerInventoryItem) => {
@@ -92,7 +92,7 @@ export function PlayerInventory() {
                     ) : (
                         nonConsumables.map((item) => {
                             const isSelected = selectedItem?.id === item.id;
-                            const isEquipped = item.id === player.playerEquippedWeaponItem?.id || item.id === player.playerEquippedArmourItem?.id;
+                            const isEquipped = item.id === player?.playerEquippedWeaponItem?.id || item.id === player?.playerEquippedArmourItem?.id;
 
                             return (
                                 <button

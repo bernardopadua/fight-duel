@@ -20,7 +20,7 @@ export function PlayerDetails(){
     const player = usePlayerStore((s) => s.player);
     const { open } = useUIStore();
 
-    const [timeLeft, setTimeLeft] = useState<number | undefined>(undefined);
+    const [timeLeft, _] = useState<number | undefined>(undefined);
 
     if (!player) return null;
 
