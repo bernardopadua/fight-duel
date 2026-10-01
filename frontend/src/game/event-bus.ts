@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 export const GAME_EVENTS = {
-    // World Events
+    //World Events
     ENTER_WORLD: 'player:enter_world',
     LEAVE_WORLD: 'player:leave_world',
 
@@ -15,11 +15,14 @@ export const GAME_EVENTS = {
     //Player
     UPDATE_PLAYER: 'player:update',
 
-    // Fight Events
+    //Fight Events
     FIGHT: 'player:fight',
     FIGHT_UPDATE: 'player:fight_update',
     FIGHT_DROP_ITEMS: 'player:fight_drop_items',
-    FIGHT_FINISH: 'player:fight_finish'
+    FIGHT_FINISH: 'player:fight_finish',
+
+    //Errors
+    GAME_CRASH: 'game:crash',
 } as const;
 
 export const EventBus = new Phaser.Events.EventEmitter();

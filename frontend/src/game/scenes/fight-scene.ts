@@ -5,7 +5,7 @@ import type {
     WebSocketFightUpdate, 
     WebSocketFightFinish,
     WebSocketFightDropItems,
-    WebSocketPlayerReviveCooldown
+    WebSocketPlayerReviveCooldownMessage
 } from '@/game/services/ws-messages';
 
 // OBJECTS
@@ -23,6 +23,8 @@ import { useUIStore } from '@/game/store/ui-store';
 // SERVICES
 import type { GameServices } from '@/game/game-context';
 
+//LOGGER
+import logger from '@/game/logger/index';
 
 interface FightData {
     creatureName: string;
@@ -48,9 +50,9 @@ export class FightScene extends Phaser.Scene {
     private isProcessing: boolean = false;
 
     // UI
-    private btnAttack: ImageButton;
-    private btnFlee: ImageButton;
-    private btnLeave: ImageButton;
+    private btnAttack!: ImageButton;
+    private btnFlee!: ImageButton;
+    private btnLeave!: ImageButton;
 
     constructor() {
         super({ key: "FightScene" });
@@ -294,7 +296,7 @@ export class FightScene extends Phaser.Scene {
             useUIStore.getState().open('dropItems');
         };
 
-        const onPlayerReviveCooldown = (data: WebSocketPlayerReviveCooldown["data"]) => {
+        const onPlayerReviveCooldown = (data: WebSocketPlayerReviveCooldownMessage["data"]) => {
             this.scene.wake('WorldScene');
             const worldScene = this.scene.get('WorldScene') as any;
             worldScene.reviveCooldown = data;
@@ -303,6 +305,14 @@ export class FightScene extends Phaser.Scene {
 
         const updatePlayerLifeAfterRecover = () => {
             const player = usePlayerStore.getState().player;
+
+            if (!player) {
+                logger.error('Player not found');
+                this.scene.wake('WorldScene');
+                this.scene.stop();
+                return;
+            }
+            
             this.lifePlayerStatus.update(player.playerLife, player.playerMaxLife);
             this.staminaPlayerStatus.update(player.playerStamina, player.playerMaxStamina);
         }
@@ -346,6 +356,14 @@ export class FightScene extends Phaser.Scene {
 
         //Adding characters
         const player = usePlayerStore.getState().player;
+
+        if (!player) {
+            logger.error('Player not found');
+            this.scene.wake('WorldScene');
+            this.scene.stop();
+            return;
+        }
+
         this.activePlayer = this.add.sprite(-50, (height/2), 'player-sprite').setScale(
             2.5, 2.5
         ).setDepth(1);

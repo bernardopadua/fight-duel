@@ -5,7 +5,7 @@ import { useSyncExternalStore } from 'react';
 import type { AnyMessage, SendMessage } from "@/game/services/ws-messages";
 
 export interface WebSocketService {
-    connect: (ticket: string|null) => void;
+    connect: (ticket: string | null) => void;
     send: <K extends SendMessage>(message: K) => void;
     subscribe: <K extends AnyMessage["action"]>(action: K, callback: (message: Extract<AnyMessage, { action: K }>) => void) => void;
     subscribeStatus: (cb: () => void) => () => void;
@@ -28,7 +28,7 @@ export function createWebSocketService(): WebSocketService {
     };
 
     return {
-        connect: (ticket?: string) => {
+        connect: (ticket: string | null) => {
             if (ws) return;
             
             if (ticket){

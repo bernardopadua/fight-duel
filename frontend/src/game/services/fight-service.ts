@@ -6,10 +6,7 @@ import type {
     WebSocketFightMessage,
     WebSocketFightUpdate,
     WebSocketFightFinish,
-    WebSocketFightDropItems,
-
-    WebSocketSendAttackMessage,
-    WebSocketSendFleeMessage
+    WebSocketFightDropItems
  } from '@/game/services/ws-messages';
 
 // EVENTBUS

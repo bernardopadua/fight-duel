@@ -1,23 +1,26 @@
-// PHASER
+//PHASER
 import Phaser from 'phaser';
 
-// DATA
+//DATA
 import regionsHighlight from '@/game/data/regions-highligh.json';
 
-// STORE
+//STORE
 import { useWorldStore } from '@/game/store/world-store';
 import { usePlayerStore } from '@/game/store/player-store';
 
-// COMPONENTS
+//COMPONENTS
 import { ImageButton } from '@/game/objects/image-button';
 
-// EVENTBUS
+//EVENTBUS
 import { EventBus, GAME_EVENTS } from '@/game/event-bus';
 
-// TYPES
+//TYPES
 import type { GameServices } from '@/game/game-context';
 import type { WorldInfo } from '@/game/types';
 import type { WebSocketFightMessage } from '@/game/services/ws-messages';
+
+//LOGGER
+import logger from '@/game/logger';
 
 interface WorldSceneActiveTweens {
     waypoint: Phaser.Tweens.Tween;
@@ -31,7 +34,7 @@ export class WorldScene extends Phaser.Scene {
     private heroIsDead: boolean = false;
     
     private showingDeathScreen: boolean = false;
-    private reviveCooldown: number;
+    private reviveCooldown: number = 0;
 
     private activeWorldWaypoint?: Phaser.GameObjects.Arc;
     
@@ -43,17 +46,17 @@ export class WorldScene extends Phaser.Scene {
     private moveInWorldBtn!: ImageButton;
 
     private activeWorld: WorldInfo | null = null;
-    private activeWorldFightScene: string;
+    private activeWorldFightScene: string = "";
     private selectedWorldId: number = 0;
-    private selectedWorldScene: string;
+    private selectedWorldScene: string = "";
 
     private reviveBtn!: ImageButton;
 
     private worldTweens: Map<number, WorldSceneActiveTweens> = new Map<number, WorldSceneActiveTweens>();
 
     //ShowDeathScreen
-    private cameraColorMatrixEffect: Phaser.Filters.ColorMatrix | null;
-    private showDeathScreenContainer: Phaser.GameObjects.Container | null;
+    private cameraColorMatrixEffect: Phaser.Filters.ColorMatrix | null = null;
+    private showDeathScreenContainer: Phaser.GameObjects.Container | null = null;
 
     constructor() {
         super({ key: 'WorldScene' });
@@ -78,11 +81,11 @@ export class WorldScene extends Phaser.Scene {
     createEventsForScene() {
         const onWorldEnter = (world: WorldInfo) => {
             this.activeWorld = world;
-            this.activeWorldFightScene = regionsHighlight.filter(region => region.id === this.activeWorld.id)[0].scene;
+            this.activeWorldFightScene = regionsHighlight.filter(region => region.id === this.activeWorld?.id)[0].scene ?? "";
             this.worldTweens.forEach((worldTween, idx) => {
                 const waypoint = worldTween.waypoint;
                 const region = worldTween.regionHighLight;
-                if (idx != this.activeWorld.id) {
+                if (idx != this.activeWorld?.id) {
                     const target = waypoint.targets[0] as Phaser.GameObjects.Image;
                     waypoint.pause();
                     target.setVisible(false);
@@ -109,7 +112,7 @@ export class WorldScene extends Phaser.Scene {
             this.worldTweens.forEach((worldTween, idx) => {
                 const waypoint = worldTween.waypoint;
                 const region = worldTween.regionHighLight;
-                if (idx !== this.activeWorld.id){
+                if (idx !== this.activeWorld?.id){
                     const target = waypoint.targets[0] as Phaser.GameObjects.Image;
                     target.setVisible(true);
                     waypoint.restart();
@@ -262,6 +265,14 @@ export class WorldScene extends Phaser.Scene {
     }
     showDeathScreen(show: boolean = true){
         if(!show){
+            const player = usePlayerStore.getState().player;
+            
+            if (!player){
+                logger.error('Player not found');
+                EventBus.emit(GAME_EVENTS.GAME_CRASH);
+                return;
+            }
+
             this.heroIsDead = false;
             this.activeHero.play({key: 'Idle', repeat: -1});
             this.showDeathScreenContainer?.destroy();
@@ -269,12 +280,12 @@ export class WorldScene extends Phaser.Scene {
             this.showDeathScreenContainer = null;
             this.cameraColorMatrixEffect = null;
 
-            if (usePlayerStore.getState().player.playerWorldInfo){
+            if (player.playerWorldInfo){
                 this.leaveWorldBtn.setVisible(true);
                 this.moveInWorldBtn.setVisible(true);
             }
 
-            this.input.mouse.startListeners();
+            this.input.mouse?.startListeners();
             return;
         }
 
@@ -285,7 +296,7 @@ export class WorldScene extends Phaser.Scene {
         this.leaveWorldBtn.setVisible(false);
         this.moveInWorldBtn.setVisible(false);
 
-        this.input.mouse.stopListeners();
+        this.input.mouse?.stopListeners();
         this.cameraColorMatrixEffect = this.cameras.main.filters.external.addColorMatrix();
         this.cameraColorMatrixEffect.colorMatrix.blackWhite();
 
@@ -318,8 +329,8 @@ export class WorldScene extends Phaser.Scene {
                     worldDescription.setText(`You are dead.\n\nYou will respawn in:\n${mins}:${secs}`);
                 }
                 if (timeLeft <= 0 && this.heroIsDead) {
-                    this.showDeathScreenContainer.destroy();
-                    this.cameraColorMatrixEffect.destroy();
+                    this.showDeathScreenContainer?.destroy();
+                    this.cameraColorMatrixEffect?.destroy();
                     setTimeout(()=>{
                         if(this.heroIsDead){
                             this.reviveBtn.setOnClick(()=>{
@@ -381,7 +392,14 @@ export class WorldScene extends Phaser.Scene {
 
         // World map highlight regions
         regionsHighlight.forEach((region)=>{
-            let world = useWorldStore.getState().getWorldId(region.id);
+            const world = useWorldStore.getState().getWorldId(region.id);
+
+            if (!world){
+                logger.error(`[world-scene]: World not found for region ${region.id}`);
+                EventBus.emit(GAME_EVENTS.GAME_CRASH);
+                return;
+            }
+
             const regionHighlight = this.add
                 .circle(region.x, region.y, region.radius, 0xcccc00)
                 .setAlpha(0.01)
@@ -460,7 +478,7 @@ export class WorldScene extends Phaser.Scene {
             });
             regionHighlight.on('pointerdown', ()=>{
                 this.selectedWorldId = world.id;
-                this.selectedWorldScene = region.scene;
+                this.selectedWorldScene = region.scene ?? "";
                 if (this.activeWorldWaypoint == regionHighlight) return;
 
                 if (this.input.keyboard)
@@ -506,8 +524,16 @@ export class WorldScene extends Phaser.Scene {
             }
         });
 
-        if (usePlayerStore.getState().player.playerStatus == 'dead' && !this.showingDeathScreen) {
-            this.reviveCooldown = usePlayerStore.getState().player.playerReviveCooldownTime;
+        const player = usePlayerStore.getState().player;
+
+        if (!player) {
+            logger.error(`[world-scene]: Player not found`);
+            EventBus.emit(GAME_EVENTS.GAME_CRASH);
+            return;
+        }
+
+        if (player.playerStatus == 'dead' && !this.showingDeathScreen) {
+            this.reviveCooldown = player.playerReviveCooldownTime;
             this.showDeathScreen();
         }
     }

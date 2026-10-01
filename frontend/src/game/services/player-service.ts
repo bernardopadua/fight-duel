@@ -1,6 +1,5 @@
 // STORE
 import { usePlayerStore } from '@/game/store/player-store';
-import { usePlayerInventoryStore } from '@/game/store/player-inventory-store';
 
 // WEBSOCKET
 import type { WebSocketService } from "@/game/services/ws-service";
@@ -9,7 +8,6 @@ import type { WebSocketService } from "@/game/services/ws-service";
 import type { 
     WebSocketWorldEnterMessage,
     WebSocketWorldLeaveMessage,
-    WebSocketInventoryUpdateMessage,
     WebSocketPlayerReviveCooldownMessage,
     WebSocketPlayerReviveMessage
  } from '@/game/services/ws-messages';

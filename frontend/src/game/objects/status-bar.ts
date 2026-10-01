@@ -7,7 +7,7 @@ export class StatusBar {
     private target: Phaser.GameObjects.Sprite;
     private scene: Phaser.Scene;
 
-    private value: number;
+    private value: number = 0;
     private valueMax: number = 0;
 
     constructor(
@@ -41,7 +41,7 @@ export class StatusBar {
     }
     public update(current: number, max: number | null) {
         this.graphics.clear();
-        if (this.valueMax == 0) this.valueMax = max;
+        if (this.valueMax == 0 && max) this.valueMax = max;
         if (this.value != current) this.value = current;
         const pct = Math.max(0, Math.min(1, current / this.valueMax));
         this.graphics.fillStyle(0x0f172a, 0.8);

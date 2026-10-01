@@ -24,14 +24,20 @@ import { ItemTooltipWindow } from '@/game/components/ItemTooltipWindow';
 export default function GameLayout() {
     const auth = useAuth();
     const services = useGameContext();
-    const containerRef = useRef<HTMLDivElement | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const { windows } = useUIStore(); 
 
     useEffect(()=>{
         const updatePlayer = () => {
+            if (auth.token == null) { auth.logout(); return; }
             services.playerService.getPlayer(auth.token);
         };
+        const gameCrash = () => {
+            auth.logout();
+        };
+        
         EventBus.on(GAME_EVENTS.UPDATE_PLAYER, updatePlayer);
+        EventBus.on(GAME_EVENTS.GAME_CRASH, gameCrash);
 
         return () => {
             EventBus.off(GAME_EVENTS.UPDATE_PLAYER, updatePlayer);
