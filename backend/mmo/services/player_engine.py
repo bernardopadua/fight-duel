@@ -101,6 +101,7 @@ class PlayerEngine:
         *, total_power: int | None = None,
         total_equipped_items_weight: int | None = None
     ) -> int:
+        return 1
         if not total_power:
             total_power = cls.get_player_total_power(player)
         

@@ -1,16 +1,94 @@
-import type { Player } from "./types";
+import { useRef, useEffect } from 'react';
 
-export default function GameLayout({ player }: { player: Player }) {
+//EVENTS
+import { EventBus, GAME_EVENTS } from '@/game/event-bus';
+
+//AUTH
+import { useAuth } from '@/auth/auth-context';
+
+//SERVICES
+import { useGameContext } from '@/game/game-context';
+
+//STORE
+import { useUIStore } from '@/game/store/ui-store';
+
+//COMPONENTS
+import { PhaserContainer } from '@/game/PhaserContainer';
+import { WindowRPG } from '@/game/components/WindowRPG';
+import { PlayerDetails, PlayerDetailsRightSide } from '@/game/components/PlayerDetails';
+import { DropItems } from '@/game/components/DropItems';
+import { PlayerInventory } from '@/game/components/PlayerInventory';
+import { PlayerStats } from '@/game/components/PlayerStats';
+import { ItemTooltipWindow } from '@/game/components/ItemTooltipWindow';
+
+export default function GameLayout() {
+    const auth = useAuth();
+    const services = useGameContext();
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const { windows } = useUIStore(); 
+
+    useEffect(()=>{
+        const updatePlayer = () => {
+            services.playerService.getPlayer(auth.token);
+        };
+        EventBus.on(GAME_EVENTS.UPDATE_PLAYER, updatePlayer);
+
+        return () => {
+            EventBus.off(GAME_EVENTS.UPDATE_PLAYER, updatePlayer);
+        }
+    },[]);
+
     return (
-        <div className="grid grid-cols-2 grid-rows-[auto_1fr] h-screen">
-            <aside className="border p-4">
-                User info + Inventário
-                <p>Player: {player.playerName}</p>
-                <p>Level: {player.playerLevel}</p>
-                <p>Currency: {player.playerCurrency}</p>
-            </aside>
-            <aside className="border p-4">Char selected</aside>
-            <div id="phaser-container" className="col-span-2 bg-black" />
+        <div ref={containerRef} className="relative w-screen h-screen overflow-hidden bg-black select-none">
+            <PhaserContainer />
+
+            <WindowRPG 
+                title='Player Profile' 
+                icon='🛡️' 
+                rightSide={<PlayerDetailsRightSide />}
+                parentContainerRef={containerRef}
+            >
+                <PlayerDetails />
+            </WindowRPG>
+
+            {windows.playerStats.open && (
+                <WindowRPG
+                    title='Player Stats'
+                    icon='⚔️'
+                    rightSide={null}
+                    parentContainerRef={containerRef}
+                    onClose={() => useUIStore.getState().close('playerStats')}
+                >
+                    <PlayerStats />
+                </WindowRPG>
+            )}
+
+            {windows.dropItems.open && (
+                <WindowRPG 
+                    title='Drop Items' 
+                    icon='📦' 
+                    rightSide={null}
+                    parentContainerRef={containerRef}
+                    initialSize={{width: 300}}
+                    initialPosition={windows.dropItems.initialPosition}
+                >
+                    <DropItems />
+                </WindowRPG>
+            )}
+
+            {windows.inventory.open && (
+                <WindowRPG
+                    title='Player Inventory'
+                    icon='🎒'
+                    rightSide={null}
+                    parentContainerRef={containerRef}
+                    onClose={() => useUIStore.getState().close('inventory')}
+                >
+                    <PlayerInventory />
+                </WindowRPG>
+            )}
+
+            <ItemTooltipWindow />
         </div>
     );
 }

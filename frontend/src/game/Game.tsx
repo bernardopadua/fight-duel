@@ -1,55 +1,35 @@
 //REACT
-import { useEffect, useState } from "react";
+import { useEffect } from 'react';
 
-// CONTEXT
-import { useAuth } from "../auth/AuthContext";
+//CONTEXT
+import { useAuth } from '@/auth/auth-context';
+import { useGameContext } from '@/game/game-context';
 
-//TYPES
-import type { Player } from "./types";
+// HOOKS
+import { useWebSocketStatus } from '@/game/services/ws-service';
 
-//API
-import { getPlayer } from "../api/player";
-
-//COMPONENTS
-import PlayerCreation from "./PlayerCreation";
-import GameLayout from "./GameLayout";
-
-type PlayerStateView = 
-    | { status: "loading" } 
-    | { status: "no-player" } 
-    | { status: "has-player", player: Player };
+// GAME COMPONENTS
+import GameLoggedIn from '@/game/GameLoggedIn';
 
 function Game(){
     const auth = useAuth();
-    const [gameState, setGameState] = useState<PlayerStateView>({ status: "loading" });
+    const services = useGameContext();
+    const wsStatus = useWebSocketStatus(services.websocketService);
 
-    useEffect(() => {
-        let ignore = false;
-        if(!auth.token) return;
+    useEffect(()=>{
+        if(wsStatus === "error" || wsStatus === "disconnected"){
+            auth.logout();
+        }
+    }, [auth, wsStatus]);
 
-        getPlayer(auth.token)
-            .then((player) => { 
-                if (ignore) return;
-                if (!player) {
-                    setGameState({ status: "no-player" });
-                    return;
-                }
+    if(wsStatus === "connecting")
+        return (<h2>Game is connecting...</h2>)
 
-                setGameState({ status: "has-player", player: player });
-            });
+    if(wsStatus === "error" || wsStatus === "disconnected"){
+        return (<h2>Game disconnected...</h2>)
+    }
 
-        return () => { ignore = true; }
-    }, []);
-
-    return (
-        gameState.status === "loading" ? 
-            <p>Loading...</p> : 
-            gameState.status === "no-player" ?
-                <PlayerCreation 
-                    onPlayerCreation={(p: Player) => {setGameState({ status: "has-player", player: p });}}
-                /> :
-                <GameLayout player={gameState.player} />
-    );
+    return <GameLoggedIn />;
 };
 
 export default Game;

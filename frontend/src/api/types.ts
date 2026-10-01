@@ -2,6 +2,7 @@
 interface RegisterResponseSuccess{
     success: string;
     token: string;
+    oneTimeTicket: string;
 }
 
 interface RegisterResponseError{
@@ -13,6 +14,7 @@ export type RegisterResponse = RegisterResponseSuccess | RegisterResponseError;
 export interface LoginResponse{
     error?: string;
     token: string;
+    oneTimeTicket: string;
 }
 
 // Payloads
